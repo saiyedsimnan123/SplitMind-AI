@@ -1,22 +1,34 @@
 "use client";
 
-import { Eye, FileCheck2, FileText, Paperclip, ReceiptText, ShieldAlert } from "lucide-react";
-import type { Expense } from "@/lib/finance";
+import { Eye, FileCheck2, FileText, Paperclip, Pencil, ReceiptText, ShieldAlert, Trash2 } from "lucide-react";
+import type { CurrencyCode, GroupExpense } from "@/lib/types";
 import { money } from "@/components/ui";
 
 export function ExpenseTable({
   expenses,
+  currency = "INR",
+  readOnly = false,
+  emptyTitle = "No expenses logged yet.",
+  emptyDetail = "Submitted expenses and attached receipts will appear here for group review.",
   onReview,
+  onEdit,
+  onDelete,
 }: {
-  expenses: Expense[];
-  onReview?: (expense: Expense) => void;
+  expenses: GroupExpense[];
+  currency?: CurrencyCode;
+  readOnly?: boolean;
+  emptyTitle?: string;
+  emptyDetail?: string;
+  onReview?: (expense: GroupExpense) => void;
+  onEdit?: (expense: GroupExpense) => void;
+  onDelete?: (expense: GroupExpense) => void;
 }) {
   if (!expenses.length) {
     return (
       <div className="empty-state">
         <ReceiptText size={22} />
-        <strong>No expenses match this filter.</strong>
-        <span>Submitted expenses and attached receipts will appear here for group review.</span>
+        <strong>{emptyTitle}</strong>
+        <span>{emptyDetail}</span>
       </div>
     );
   }
@@ -40,7 +52,7 @@ export function ExpenseTable({
               </span>
               <span className="table-expense-copy">
                 <strong>{expense.title}</strong>
-                <small>{expense.createdAt}</small>
+                <small>{expense.date ? `${expense.date} · ${expense.createdAt}` : expense.createdAt}</small>
               </span>
             </div>
 
@@ -70,7 +82,7 @@ export function ExpenseTable({
                   </a>
                 ) : (
                   <small className="no-receipt">
-                    <ShieldAlert size={12} /> No receipt attached
+                    <ShieldAlert size={12} /> No receipt
                   </small>
                 )}
 
@@ -86,13 +98,37 @@ export function ExpenseTable({
                     }
                   >
                     <Eye size={12} />
-                    {hasReceipt ? "Review & verify" : "Check details"}
+                    {hasReceipt ? "Review" : "Check"}
+                  </button>
+                )}
+
+                {!readOnly && onEdit && (
+                  <button
+                    type="button"
+                    className="row-icon-btn"
+                    onClick={() => onEdit(expense)}
+                    title="Edit expense"
+                    aria-label={`Edit ${expense.title}`}
+                  >
+                    <Pencil size={12} />
+                  </button>
+                )}
+
+                {!readOnly && onDelete && (
+                  <button
+                    type="button"
+                    className="row-icon-btn row-icon-btn-danger"
+                    onClick={() => onDelete(expense)}
+                    title="Delete expense"
+                    aria-label={`Delete ${expense.title}`}
+                  >
+                    <Trash2 size={12} />
                   </button>
                 )}
               </div>
             </div>
 
-            <strong className="table-amount tabular">{money(expense.amount)}</strong>
+            <strong className="table-amount tabular">{money(expense.amount, currency)}</strong>
           </div>
         );
       })}

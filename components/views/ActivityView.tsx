@@ -1,61 +1,72 @@
 "use client";
 
-import { Clock3, FileText } from "lucide-react";
-import type { Expense } from "@/lib/finance";
-import type { AuditEvent } from "@/lib/types";
+import { ArrowUpRight, Clock3, FileText, LockKeyhole } from "lucide-react";
+import type { AuditEvent, CurrencyCode, GroupExpense } from "@/lib/types";
 import { ExpenseTable } from "@/components/ExpenseTable";
 
 export function ActivityView({
+  groupId,
+  groupName,
+  currency,
   audit,
   expenses,
   onReviewExpense,
+  onOpenSecuritySettings,
 }: {
+  groupId: string;
+  groupName: string;
+  currency: CurrencyCode;
   audit: AuditEvent[];
-  expenses: Expense[];
-  onReviewExpense: (expense: Expense) => void;
+  expenses: GroupExpense[];
+  onReviewExpense: (expense: GroupExpense) => void;
+  onOpenSecuritySettings: () => void;
 }) {
+  const groupEvents = audit.filter((event) => event.groupId === groupId);
+
   return (
     <section className="panel full-panel">
       <div className="panel-heading">
         <div>
-          <div className="section-kicker">THE PAPER TRAIL</div>
+          <div className="section-kicker">{groupName.toUpperCase()} · PAPER TRAIL</div>
           <h2>Activity &amp; audit history</h2>
         </div>
-        <span className="save-badge">
-          <span /> {audit.length} local event{audit.length === 1 ? "" : "s"}
-        </span>
+        <button type="button" className="button button-outline" onClick={onOpenSecuritySettings}>
+          <LockKeyhole size={14} /> Security &amp; Activity <ArrowUpRight size={14} />
+        </button>
       </div>
 
       <p className="muted-copy">
-        Recent local demo actions. PayPal payment status is independently verified and persisted in Supabase
-        when configured.
+        Recent group events for {groupName}. Authentication, session revocations, and cross-group audit trails
+        are available in Settings → Security &amp; Activity.
       </p>
 
-      {audit.length > 0 ? (
-        <div className="audit-list" role="list" aria-label="Audit events">
-          {audit.map((event) => (
+      {groupEvents.length > 0 ? (
+        <div className="audit-list" role="list" aria-label="Group audit events">
+          {groupEvents.map((event) => (
             <div className="audit-row" role="listitem" key={event.id}>
               <span className="activity-icon activity-verified">
                 <Clock3 size={15} />
               </span>
               <span className="audit-copy">
-                <strong>{event.action}</strong>
-                <small>{event.detail}</small>
+                <strong>
+                  {event.eventName} · <small className="actor-inline">{event.actorLabel}</small>
+                </strong>
+                <small>{event.description}</small>
               </span>
-              <time>{event.createdAt}</time>
+              <time>{new Date(event.createdAt).toLocaleString()}</time>
             </div>
           ))}
         </div>
       ) : (
         <div className="empty-state">
           <FileText size={22} />
-          <strong>No changes yet.</strong>
-          <span>Expense submissions, receipt reviews, member additions, and budget proposals appear here.</span>
+          <strong>No changes recorded in {groupName} yet.</strong>
+          <span>Expense submissions, receipt reviews, member changes, and budget updates appear here.</span>
         </div>
       )}
 
       <h3 className="ledger-heading">Expense ledger</h3>
-      <ExpenseTable expenses={expenses} onReview={onReviewExpense} />
+      <ExpenseTable expenses={expenses} currency={currency} onReview={onReviewExpense} />
     </section>
   );
 }

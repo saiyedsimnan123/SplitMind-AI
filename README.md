@@ -1,21 +1,25 @@
 # SplitMind AI
 
-**One Group. One Smart Money Mind.** SplitMind is a group-expense coordination demo built around the Goa Trip 2026 scenario: eight friends, three days, and a ₹40,000 shared plan.
+**One Group. One Smart Money Mind.** SplitMind AI is a multi-group shared finance workspace for trips, roommates, events, and projects, featuring isolated group ledgers, deterministic SmartSplit settlements, explicit human receipt verification, Supabase Auth & Row Level Security (RLS), immutable security/audit trails, and server-verified PayPal Sandbox checkout.
 
-## What works in this demo
+## Features
 
-- Responsive dashboard with an editable category budget, group contributions, and current spend.
-- SmartSplit equal-share balances and a minimum-transfer settlement suggestion.
-- Expense submissions with optional receipt images/PDFs and explicit **unverified** status until a person opens the evidence and confirms their review. OCR and automated duplicate/discrepancy detection are not implemented.
-- MoneyTwin simulations for unexpected costs and member cancellations. Scenarios do not modify an agreed budget.
-- Group financial agent that calls the real local calculation functions. Without `GEMINI_API_KEY`, answers are explicitly attributed to the deterministic engine. With Gemini configured, it may explain deterministic calculation results but does not calculate financial amounts itself.
-- Server-side PayPal Sandbox order creation and capture, with idempotent order requests and a Supabase payment ledger. No payment is considered complete based on a browser redirect; the server verifies the PayPal capture and exact amount/currency.
+- **Multi-Group Workspaces**: Create independent groups for Trips & vacations, Roommates & shared living, Events & parties, Projects, or other shared plans—each with its own currency (`INR`, `USD`, `EUR`, `GBP`), total budget, date range, organizer/owner, members, expenses, contributions, and settlements. **Goa Trip 2026** is preserved as the initial demo group.
+- **Interactive Budgets & SmartSplit**: Edit category budgets, apply updates with confirmation to recalculate remaining balances, run non-destructive MoneyTwin what-if simulations, record member contributions & settlement transfers, and search/filter groups and expenses.
+- **Human Receipt Verification**: Expense submissions remain **Unverified** until a person opens the attached image/PDF receipt and explicitly confirms review.
+- **Group Financial Agent**: Calls deterministic calculation functions in `lib/finance.ts` scoped to the active group and currency. Optionally explains verified calculations using Gemini when `GEMINI_API_KEY` is configured.
+- **Supabase Auth & Protected Routes**: Server-side authentication (`/login`, `/signup`, `/forgot-password`, `/reset-password`, `/api/auth/*`) using `HttpOnly`, `SameSite=Lax` cookies—never storing passwords or tokens in `localStorage`.
+- **Settings → Security & Activity**: Dedicated audit trail separating Authentication/Session events from Group/Financial ledger events, with search and filters by event type, group, status, and date, plus active session/device overview and session revocation controls (`local`, `others`, `global`).
+- **PayPal Sandbox Checkout**: Server-side order creation and capture verification with client idempotency protection and Supabase ledger persistence (`public.splitmind_payments`).
 
-The demo workspace's group data and small receipt attachments are saved in **the current browser's local storage**. They are not shared with other members. Budget edits create local proposals and do not change the agreed budget; this demo has no shared group-approval flow. PayPal payment status is persisted separately in Supabase when configured. SplitMind never holds, escrows, or transfers group funds; the payer authorizes a payment through PayPal, which processes it directly.
+## Local Preview vs. Live Supabase Mode
+
+- **Without Supabase credentials (`SUPABASE_URL`, `SUPABASE_ANON_KEY`)**: The app runs in an explicit **Local Preview Mode** (stored in browser storage) so you can explore multi-group creation, switching, budgets, expenses, and settlements without fake authentication. Authentication routes honestly report that Supabase Auth is unconfigured and refuse fake login simulation.
+- **With Supabase credentials configured**: Middleware and server checks enforce authenticated access across `/`, `/api/groups/*`, `/api/profile`, `/api/security/*`, `/api/payments/*`, and `/api/agent`. Every group query/mutation enforces membership/ownership permissions and PostgreSQL RLS (`auth.uid()`).
 
 ## Run locally
 
-Requirements: Node.js 20.9 or later and npm. The configured test runner requires Node.js 20 or later.
+Requirements: Node.js 20.9 or later and npm.
 
 ```bash
 npm install
@@ -23,36 +27,41 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The dashboard and deterministic agent work without external AI or payment credentials.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Optional Gemini agent explanations
+## Database & Migration Setup (Supabase)
 
-Set `GEMINI_API_KEY` in `.env.local`; optionally set `GEMINI_MODEL` (defaults to `gemini-2.0-flash`). The server computes all financial results before requesting an explanation from Gemini. If Gemini is configured but unavailable, the request returns an error rather than claiming a deterministic response came from Gemini or silently switching modes. No API key is exposed in browser code.
-
-## PayPal Sandbox
-
-PayPal checkout is **USD Sandbox only**; demo group budgets remain in INR. The amount sent to PayPal is not an implicit INR/USD conversion and is not automatically reconciled to a member's INR share.
-
-1. Create a PayPal developer account and a Sandbox REST app, then copy its Sandbox client ID and secret.
-2. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql) in its SQL editor.
-3. Configure `PAYPAL_ENV=sandbox`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` or your deployment's server environment.
-4. Set `APP_URL` to the canonical deployment origin (for example `https://your-app.vercel.app`) when deployed, so the approval return URL is predictable.
-5. In PayPal's Sandbox, use a test buyer account for checkout. No real payment credentials are needed.
-
-`SUPABASE_SERVICE_ROLE_KEY` and `PAYPAL_CLIENT_SECRET` are server-only. Never prefix them with `NEXT_PUBLIC_` or commit them. The service-role key bypasses Row Level Security and is used only by the server API routes; no public client policies are needed for the payment table. A configured PayPal order is recorded as pending and only becomes `COMPLETED` after server-side capture verification. Cancellation or an incomplete capture is not reported as paid.
+1. Create a Supabase project.
+2. Apply the SQL migrations in order using the Supabase CLI or SQL Editor:
+   - [`supabase/migrations/0001_initial_payments.sql`](./supabase/migrations/0001_initial_payments.sql)
+   - [`supabase/migrations/0002_multi_group_auth_and_audit.sql`](./supabase/migrations/0002_multi_group_auth_and_audit.sql)
+   *(Alternatively, [`supabase/schema.sql`](./supabase/schema.sql) contains the consolidated schema.)*
+3. In **Supabase Authentication → URL Configuration**, add your redirect URLs:
+   - `http://localhost:3000/api/auth/confirm`
+   - `https://<your-domain>/api/auth/confirm`
+4. Configure `.env.local` with `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `APP_URL`.
 
 ## Environment variables
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `GEMINI_API_KEY` | No | Optional server-side Gemini explanation |
-| `GEMINI_MODEL` | No | Gemini model name |
+| `SUPABASE_URL` | For Auth, DB & PayPal | Supabase project URL |
+| `SUPABASE_ANON_KEY` | For Auth & RLS queries | Public anon key used server-side with user JWTs |
+| `SUPABASE_SERVICE_ROLE_KEY` | For Audit Logs & PayPal | Server-only service role key (never expose to browser) |
+| `APP_URL` | Recommended | Canonical app origin for auth email redirects & PayPal return URLs |
 | `PAYPAL_ENV` | For PayPal | `sandbox` only |
 | `PAYPAL_CLIENT_ID` | For PayPal | Sandbox REST app client ID |
-| `PAYPAL_CLIENT_SECRET` | For PayPal | Sandbox REST app secret; server only |
-| `SUPABASE_URL` | For PayPal | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | For PayPal | Server-only Supabase service role |
-| `APP_URL` | Recommended in production | Canonical app URL for PayPal return links |
+| `PAYPAL_CLIENT_SECRET` | For PayPal | Sandbox REST app secret (server-only) |
+| `GEMINI_API_KEY` | No | Optional server-side Gemini explanation |
+| `GEMINI_MODEL` | No | Gemini model name (defaults to `gemini-2.0-flash`) |
+
+## Security Model & RLS Highlights
+
+- **No browser token storage**: Supabase `access_token` and `refresh_token` stay inside server-set `HttpOnly` cookies.
+- **No service-role key exposure**: `SUPABASE_SERVICE_ROLE_KEY` is never prefixed with `NEXT_PUBLIC_` and is only used in server route handlers (`splitmind_payments` and append-only `security_audit_events`).
+- **Row Level Security (RLS)**: Enabled across `profiles`, `groups`, `group_memberships`, `group_budgets`, `expenses`, `contributions`, `settlements`, `security_audit_events`, and `splitmind_payments`.
+- **Immutable Audit Ledger**: `security_audit_events` blocks `INSERT`/`UPDATE`/`DELETE` from `anon` and `authenticated` roles via PostgreSQL privileges, RLS, triggers, and API route checks (`403`), and redacts passwords, bearer tokens, and secrets before writing.
+- **Server-derived Identity**: Route handlers derive `user.id` exclusively from verified Supabase Auth sessions (`auth.uid()`), never from client-supplied `userId` or `ownerId` fields.
 
 ## Validate
 
@@ -63,13 +72,4 @@ npm run lint
 npm run build
 ```
 
-## Architecture and limitations
-
-- Next.js App Router, React, strict TypeScript; suitable for Vercel deployment.
-- Pure calculation functions in `lib/finance.ts`, called by both the UI and the financial agent.
-- Next.js route handlers validate requests and keep all external service credentials on the server.
-- `supabase/schema.sql` provides a server-side idempotent payment ledger. No general group database, authentication, or multi-user synchronization is configured in this demo.
-- PayPal operations are not enabled unless Sandbox credentials and Supabase persistence are both set up.
-- Submitted receipts and a recent local action history are stored per browser and are not an audit-grade shared record. OCR and automated receipt checks are not implemented.
-
-This is a demo—not financial, tax, investment, or payment-processor advice.
+This is a coordination workspace—not financial, tax, investment, or payment-processor advice.

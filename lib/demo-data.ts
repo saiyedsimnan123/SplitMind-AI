@@ -1,4 +1,5 @@
 import type { Category, Expense, Member } from "@/lib/finance";
+import type { GroupRecord } from "@/lib/types";
 
 export const initialMembers: Member[] = [
   { id: "m1", name: "You", initials: "AK", color: "coral", paid: 8000 },
@@ -25,3 +26,100 @@ export const initialExpenses: Expense[] = [
   { id: "e3", title: "Scooter hire · 2 days", category: "Getting around", amount: 2900, submittedBy: "You", verified: false, createdAt: "Yesterday" },
   { id: "e4", title: "First-night dinner", category: "Food & drinks", amount: 3850, submittedBy: "Neha Kapoor", verified: false, createdAt: "Yesterday" },
 ];
+
+export function createInitialGoaGroup(options?: {
+  ownerUserId?: string | null;
+  ownerDisplayName?: string;
+  ownerInitials?: string;
+}): GroupRecord {
+  const now = "2026-11-11T07:00:00.000Z";
+  const ownerName = options?.ownerDisplayName?.trim() || "You";
+  const ownerInitials = options?.ownerInitials?.trim() || "AK";
+
+  return {
+    id: "goa-trip-2026",
+    name: "Goa Trip 2026",
+    planType: "trip",
+    description: "Eight friends, three days in North Goa, and a ₹40,000 shared plan.",
+    currency: "INR",
+    totalBudget: 40000,
+    startDate: "2026-11-14",
+    endDate: "2026-11-16",
+    ownerMemberId: "m1",
+    ownerUserId: options?.ownerUserId ?? null,
+    archivedAt: null,
+    isDemo: true,
+    members: initialMembers.map((member, index) => ({
+      ...member,
+      name: index === 0 ? ownerName : member.name,
+      initials: index === 0 ? ownerInitials : member.initials,
+      role: index === 0 ? "owner" : "member",
+      userId: index === 0 ? (options?.ownerUserId ?? null) : null,
+    })),
+    categories: initialCategories.map((category) => ({ ...category })),
+    draftCategories: initialCategories.map((category) => ({ ...category })),
+    proposalRequested: false,
+    expenses: initialExpenses.map((expense) => ({
+      ...expense,
+      submittedBy: expense.submittedBy === "You" ? ownerName : expense.submittedBy,
+      paidByMemberId:
+        initialMembers.find((m) => m.name === expense.submittedBy)?.id ?? "m1",
+      date: "2026-11-14",
+    })),
+    contributions: [
+      {
+        id: "c-goa-1",
+        memberId: "m1",
+        memberName: ownerName,
+        amount: 8000,
+        currency: "INR",
+        source: "expense",
+        note: "Scooter hire & activity advance",
+        createdAt: now,
+      },
+      {
+        id: "c-goa-2",
+        memberId: "m2",
+        memberName: "Priya Sharma",
+        amount: 6500,
+        currency: "INR",
+        source: "expense",
+        note: "Villa deposit share",
+        createdAt: now,
+      },
+      {
+        id: "c-goa-3",
+        memberId: "m3",
+        memberName: "Arjun Mehta",
+        amount: 3800,
+        currency: "INR",
+        source: "expense",
+        note: "Airport transfers",
+        createdAt: now,
+      },
+      {
+        id: "c-goa-4",
+        memberId: "m5",
+        memberName: "Ishaan Rao",
+        amount: 3000,
+        currency: "INR",
+        source: "manual",
+        note: "Shared group pool advance",
+        createdAt: now,
+      },
+      {
+        id: "c-goa-5",
+        memberId: "m6",
+        memberName: "Neha Kapoor",
+        amount: 2250,
+        currency: "INR",
+        source: "expense",
+        note: "First-night dinner contribution",
+        createdAt: now,
+      },
+    ],
+    settlements: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+}

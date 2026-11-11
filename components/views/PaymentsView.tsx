@@ -10,22 +10,27 @@ import {
   LockKeyhole,
   ShieldCheck,
 } from "lucide-react";
-import type { PaymentFeedback } from "@/lib/types";
+import type { CurrencyCode, PaymentFeedback } from "@/lib/types";
 
 export function PaymentsView({
+  groupName,
+  groupCurrency,
   paymentAmount,
   paymentBusy,
   paymentFeedback,
   onChangeAmount,
   onCreateOrder,
 }: {
+  groupName: string;
+  groupCurrency: CurrencyCode;
   paymentAmount: string;
   paymentBusy: boolean;
   paymentFeedback: PaymentFeedback;
   onChangeAmount: (value: string) => void;
   onCreateOrder: () => void;
 }) {
-  const isValidFormat = /^(?:0|[1-9]\d{0,3})(?:\.\d{1,2})?$/.test(paymentAmount) &&
+  const isValidFormat =
+    /^(?:0|[1-9]\d{0,3})(?:\.\d{1,2})?$/.test(paymentAmount) &&
     Number(paymentAmount) >= 0.01 &&
     Number(paymentAmount) <= 9999.99;
 
@@ -34,7 +39,7 @@ export function PaymentsView({
       <section className="panel payment-panel">
         <div className="panel-heading">
           <div>
-            <div className="section-kicker">PAYPAL SANDBOX</div>
+            <div className="section-kicker">{groupName.toUpperCase()} · PAYPAL SANDBOX</div>
             <h2>Payments, with a paper trail.</h2>
           </div>
           <span className="save-badge">
@@ -43,9 +48,9 @@ export function PaymentsView({
         </div>
 
         <p className="muted-copy">
-          Create a PayPal Sandbox order. PayPal holds and transfers funds directly between test accounts—SplitMind
-          is not a wallet, escrow service, or custodian, and USD Sandbox amounts are separate from the INR demo
-          ledger.
+          Create a PayPal Sandbox order linked to {groupName}. PayPal holds and transfers funds directly
+          between test accounts—SplitMind is not a wallet or custodian, and USD Sandbox amounts are separate
+          from the {groupCurrency} group ledger.
         </p>
 
         <div className="preset-chips" aria-label="Quick Sandbox USD amounts">

@@ -72,7 +72,16 @@ export async function findPaymentByOrder(orderId: string) {
   return (await response.json() as PaymentRecord[])[0] ?? null;
 }
 
-export type PaymentRecord = { idempotency_key: string; order_id: string; amount: string; currency: string; status: string; capture_id: string | null };
+export type PaymentRecord = {
+  idempotency_key: string;
+  order_id: string;
+  amount: string;
+  currency: string;
+  status: string;
+  capture_id: string | null;
+  user_id?: string | null;
+  group_id?: string | null;
+};
 
 export async function persistPayment(record: PaymentRecord) {
   const { url } = databaseConfig();

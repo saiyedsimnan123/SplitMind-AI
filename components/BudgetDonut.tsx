@@ -2,16 +2,19 @@
 
 import { useState } from "react";
 import type { Category } from "@/lib/finance";
+import type { CurrencyCode } from "@/lib/types";
 import { money } from "@/components/ui";
 
 export function BudgetDonut({
   categories,
   totalBudget,
   totalSpent,
+  currency = "INR",
 }: {
   categories: Category[];
   totalBudget: number;
   totalSpent: number;
+  currency?: CurrencyCode;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const activeCategory = categories.find((item) => item.id === selectedId) ?? null;
@@ -32,10 +35,10 @@ export function BudgetDonut({
   });
 
   const centerKicker = activeCategory ? activeCategory.label : "TOTAL PLANNED";
-  const centerValue = activeCategory ? money(activeCategory.budget) : money(totalBudget);
+  const centerValue = activeCategory ? money(activeCategory.budget, currency) : money(totalBudget, currency);
   const centerSub = activeCategory
-    ? `${money(activeCategory.spent)} spent · ${totalBudget > 0 ? Math.round((activeCategory.budget / totalBudget) * 100) : 0}%`
-    : `${money(totalSpent)} spent (${totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0}%)`;
+    ? `${money(activeCategory.spent, currency)} spent · ${totalBudget > 0 ? Math.round((activeCategory.budget / totalBudget) * 100) : 0}%`
+    : `${money(totalSpent, currency)} spent (${totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0}%)`;
 
   return (
     <div className="budget-chart-row">
@@ -92,10 +95,10 @@ export function BudgetDonut({
               <span className="legend-copy">
                 <span className="legend-name">{category.label}</span>
                 <small className="legend-meta">
-                  {money(category.spent)} spent · {sharePct}%
+                  {money(category.spent, currency)} spent · {sharePct}%
                 </small>
               </span>
-              <strong className="tabular">{money(category.budget)}</strong>
+              <strong className="tabular">{money(category.budget, currency)}</strong>
             </button>
           );
         })}

@@ -7,10 +7,12 @@ import type { ChatMessage } from "@/lib/types";
 export function AgentMessageList({
   messages,
   isThinking,
+  userInitials = "AK",
   variant = "rail",
 }: {
   messages: ChatMessage[];
   isThinking: boolean;
+  userInitials?: string;
   variant?: "rail" | "page";
 }) {
   const endRef = useRef<HTMLDivElement>(null);
@@ -24,7 +26,7 @@ export function AgentMessageList({
       {messages.map((message, index) => (
         <div className={`message ${message.role}`} key={`${message.role}-${index}`}>
           <span className="message-avatar" aria-hidden="true">
-            {message.role === "assistant" ? <Sparkles size={13} /> : "AK"}
+            {message.role === "assistant" ? <Sparkles size={13} /> : userInitials}
           </span>
           <div className="message-body">
             <div className="message-text">{message.text}</div>
@@ -60,7 +62,9 @@ export function AgentMessageList({
 }
 
 export function AgentRail({
+  groupName,
   memberCount,
+  userInitials,
   messages,
   ask,
   isThinking,
@@ -70,7 +74,9 @@ export function AgentRail({
   onSubmitQuestion,
   onClear,
 }: {
+  groupName: string;
   memberCount: number;
+  userInitials?: string;
   messages: ChatMessage[];
   ask: string;
   isThinking: boolean;
@@ -126,10 +132,16 @@ export function AgentRail({
         </div>
 
         <div className="context-chip">
-          <span>✦</span> Goa Trip 2026 <span className="context-divider" /> {memberCount} friends
+          <span>✦</span> {groupName} <span className="context-divider" /> {memberCount} member
+          {memberCount === 1 ? "" : "s"}
         </div>
 
-        <AgentMessageList messages={messages} isThinking={isThinking} variant="rail" />
+        <AgentMessageList
+          messages={messages}
+          isThinking={isThinking}
+          userInitials={userInitials}
+          variant="rail"
+        />
 
         <div className="chat-suggestions">
           <span>TRY ASKING</span>
@@ -152,7 +164,7 @@ export function AgentRail({
         >
           <input
             aria-label="Ask your group money mind"
-            placeholder="Ask about your group..."
+            placeholder={`Ask about ${groupName}...`}
             value={ask}
             onChange={(event) => onChangeAsk(event.target.value)}
           />
@@ -163,7 +175,7 @@ export function AgentRail({
 
         <div className="agent-disclaimer">
           <CircleHelp size={13} />
-          <span>AI explanations use your group&apos;s numbers. Nothing changes without your say-so.</span>
+          <span>AI explanations use {groupName}&apos;s numbers. Nothing changes without your say-so.</span>
         </div>
       </aside>
     </>

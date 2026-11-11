@@ -8,6 +8,7 @@ import {
   Clock3,
   MessageCircle,
   MoreHorizontal,
+  Plus,
   ReceiptText,
   ShieldAlert,
   ShieldCheck,
@@ -15,12 +16,15 @@ import {
   UserPlus,
   WalletCards,
 } from "lucide-react";
-import type { Category, Expense, Member } from "@/lib/finance";
-import type { MemberBalance, Screen } from "@/lib/types";
+import type { Category } from "@/lib/finance";
+import type { CurrencyCode, GroupExpense, GroupMember, MemberBalance, Screen } from "@/lib/types";
 import { BudgetDonut } from "@/components/BudgetDonut";
 import { Avatar, ProgressBar, money } from "@/components/ui";
 
 export function OverviewView({
+  groupName,
+  currency,
+  isArchived,
   members,
   categories,
   expenses,
@@ -30,25 +34,30 @@ export function OverviewView({
   unverifiedCount,
   onSelectScreen,
   onOpenAddMember,
+  onOpenExpenseModal,
   onReviewExpense,
   onAskAgent,
 }: {
-  members: Member[];
+  groupName: string;
+  currency: CurrencyCode;
+  isArchived: boolean;
+  members: GroupMember[];
   categories: Category[];
-  expenses: Expense[];
+  expenses: GroupExpense[];
   balances: MemberBalance[];
   totalBudget: number;
   totalSpent: number;
   unverifiedCount: number;
   onSelectScreen: (screen: Screen) => void;
   onOpenAddMember: () => void;
-  onReviewExpense: (expense: Expense) => void;
+  onOpenExpenseModal: () => void;
+  onReviewExpense: (expense: GroupExpense) => void;
   onAskAgent: (question: string) => void;
 }) {
   const spentPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
   const remaining = totalBudget - totalSpent;
-  const you = members[0];
-  const yourBalance = balances.find((item) => item.id === you?.id);
+  const ownerOrFirst = members.find((m) => m.role === "owner") ?? members[0];
+  const yourBalance = balances.find((item) => item.id === ownerOrFirst?.id);
   const plannedPerPerson = totalBudget / Math.max(members.length, 1);
 
   return (
@@ -61,16 +70,18 @@ export function OverviewView({
               <WalletCards size={16} />
             </span>
           </div>
-          <div className="stat-number tabular">{money(totalBudget)}</div>
+          <div className="stat-number tabular">{money(totalBudget, currency)}</div>
           <div className="stat-foot">
-            <span className="positive">{members.length} friends</span>
+            <span className="positive">
+              {members.length} member{members.length === 1 ? "" : "s"}
+            </span>
             <span>·</span>
-            <span>{money(plannedPerPerson)} each</span>
+            <span>{money(plannedPerPerson, currency)} each</span>
           </div>
           <div className="budget-ribbon">
             <span>PLANNED</span>
             <button type="button" className="ribbon-link" onClick={() => onSelectScreen("Budget planner")}>
-              Edit draft <ArrowUpRight size={13} />
+              Edit plan <ArrowUpRight size={13} />
             </button>
           </div>
         </article>
@@ -82,11 +93,15 @@ export function OverviewView({
               <ArrowUpRight size={16} />
             </span>
           </div>
-          <div className="stat-number tabular">{money(totalSpent)}</div>
+          <div className="stat-number tabular">{money(totalSpent, currency)}</div>
           <div className="stat-foot">
             <span className={remaining < 0 ? "warn-text" : "positive"}>{spentPct}% of total budget</span>
             <span>·</span>
-            <span>{remaining >= 0 ? `${money(remaining)} left` : `${money(Math.abs(remaining))} over`}</span>
+            <span>
+              {remaining >= 0
+                ? `${money(remaining, currency)} left`
+                : `${money(Math.abs(remaining), currency)} over`}
+            </span>
           </div>
           <ProgressBar
             value={spentPct}
@@ -94,28 +109,28 @@ export function OverviewView({
             label="Percentage of group budget spent"
           />
           <div className="stat-bottomline">
-            <span>{remaining >= 0 ? "On track for your trip" : "Above planned cap"}</span>
+            <span>{remaining >= 0 ? "On track for this plan" : "Above planned cap"}</span>
             <span className="tabular">{spentPct}%</span>
           </div>
         </article>
 
         <article className="stat-card">
           <div className="stat-top">
-            <span className="stat-label">YOUR CONTRIBUTION</span>
+            <span className="stat-label">ORGANIZER SHARE</span>
             <span className="stat-icon lilac-icon">
               <ArrowDownLeft size={16} />
             </span>
           </div>
-          <div className="stat-number tabular">{money(you?.paid ?? 0)}</div>
+          <div className="stat-number tabular">{money(ownerOrFirst?.paid ?? 0, currency)}</div>
           <div className="stat-foot">
-            <span>Of {money(plannedPerPerson)} planned share</span>
+            <span>Of {money(plannedPerPerson, currency)} planned share</span>
           </div>
           {yourBalance && yourBalance.outstanding >= 1 ? (
             <div className="paid-note paid-note-pending">
               <span className="paid-check paid-check-pending">
                 <Clock3 size={12} />
               </span>
-              <span>{money(yourBalance.outstanding)} due vs current spend</span>
+              <span>{money(yourBalance.outstanding, currency)} due vs current spend</span>
             </div>
           ) : (
             <div className="paid-note">
@@ -124,7 +139,7 @@ export function OverviewView({
               </span>
               <span>
                 {yourBalance && yourBalance.balance >= 1
-                  ? `Ahead by ${money(yourBalance.balance)}`
+                  ? `Ahead by ${money(yourBalance.balance, currency)}`
                   : "All settled on current spend"}
               </span>
             </div>
@@ -139,13 +154,19 @@ export function OverviewView({
             </span>
           </div>
           <div className="status-heading">
-            {unverifiedCount > 0 ? `${unverifiedCount} to review` : "All verified"}{" "}
+            {expenses.length === 0
+              ? "Ready to track"
+              : unverifiedCount > 0
+                ? `${unverifiedCount} to review`
+                : "All verified"}{" "}
             <span className="status-emoji">✦</span>
           </div>
           <div className="stat-foot">
-            {unverifiedCount > 0
-              ? "Receipts need human confirmation."
-              : "Every submitted expense is verified."}
+            {expenses.length === 0
+              ? `No expenses logged in ${groupName} yet.`
+              : unverifiedCount > 0
+                ? "Receipts need human confirmation."
+                : "Every submitted expense is verified."}
           </div>
           <div className="status-bottom">
             <div className="avatar-stack">
@@ -154,8 +175,8 @@ export function OverviewView({
               ))}
               {members.length > 5 && <span className="stack-more">+{members.length - 5}</span>}
             </div>
-            <button type="button" onClick={onOpenAddMember}>
-              <UserPlus size={13} /> Add friend
+            <button type="button" onClick={onOpenAddMember} disabled={isArchived}>
+              <UserPlus size={13} /> Add member
             </button>
           </div>
         </article>
@@ -173,7 +194,12 @@ export function OverviewView({
             </button>
           </div>
 
-          <BudgetDonut categories={categories} totalBudget={totalBudget} totalSpent={totalSpent} />
+          <BudgetDonut
+            categories={categories}
+            totalBudget={totalBudget}
+            totalSpent={totalSpent}
+            currency={currency}
+          />
 
           <div className="budget-footer">
             <div>
@@ -203,35 +229,48 @@ export function OverviewView({
             </button>
           </div>
 
-          <div className="activity-list">
-            {expenses.slice(0, 4).map((expense) => (
-              <button
-                type="button"
-                className="activity-row activity-row-button"
-                key={expense.id}
-                onClick={() => onReviewExpense(expense)}
-              >
-                <span className={`activity-icon ${expense.verified ? "activity-verified" : "activity-pending"}`}>
-                  {expense.verified ? <ReceiptText size={16} /> : <Clock3 size={16} />}
-                </span>
-                <span className="activity-copy">
-                  <strong>{expense.title}</strong>
-                  <small>
-                    {expense.submittedBy} · {expense.createdAt}
-                  </small>
-                </span>
-                <span className="activity-amount tabular">
-                  <span>{money(expense.amount)}</span>
-                  <small className={expense.verified ? "verified-label" : "pending-label"}>
-                    {expense.verified ? "Verified" : "Needs review"}
-                  </small>
-                </span>
-              </button>
-            ))}
-          </div>
+          {expenses.length === 0 ? (
+            <div className="empty-state" style={{ marginTop: 14 }}>
+              <ReceiptText size={22} />
+              <strong>No expenses logged in {groupName} yet.</strong>
+              <span>Add your first shared expense or invite members to start tracking balances.</span>
+              {!isArchived && (
+                <button type="button" className="button button-dark" onClick={onOpenExpenseModal}>
+                  <Plus size={14} /> Log first expense
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="activity-list">
+              {expenses.slice(0, 4).map((expense) => (
+                <button
+                  type="button"
+                  className="activity-row activity-row-button"
+                  key={expense.id}
+                  onClick={() => onReviewExpense(expense)}
+                >
+                  <span className={`activity-icon ${expense.verified ? "activity-verified" : "activity-pending"}`}>
+                    {expense.verified ? <ReceiptText size={16} /> : <Clock3 size={16} />}
+                  </span>
+                  <span className="activity-copy">
+                    <strong>{expense.title}</strong>
+                    <small>
+                      {expense.submittedBy} · {expense.createdAt}
+                    </small>
+                  </span>
+                  <span className="activity-amount tabular">
+                    <span>{money(expense.amount, currency)}</span>
+                    <small className={expense.verified ? "verified-label" : "pending-label"}>
+                      {expense.verified ? "Verified" : "Needs review"}
+                    </small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
 
           <button type="button" className="panel-footer-link" onClick={() => onSelectScreen("Expenses")}>
-            See all {expenses.length} expenses <ArrowUpRight size={14} />
+            See all {expenses.length} expense{expenses.length === 1 ? "" : "s"} <ArrowUpRight size={14} />
           </button>
         </section>
       </div>
@@ -257,7 +296,7 @@ export function OverviewView({
                   <Avatar member={member} size="sm" />
                   <span className="person-name">{member.name}</span>
                   <span className="person-paid tabular">
-                    {money(member.paid)}
+                    {money(member.paid, currency)}
                     <small>contributed</small>
                   </span>
                   <span
@@ -266,9 +305,9 @@ export function OverviewView({
                     }`}
                   >
                     {owes
-                      ? `${money(member.outstanding)} to go`
+                      ? `${money(member.outstanding, currency)} to go`
                       : isAhead
-                        ? `+${money(member.balance)} ahead`
+                        ? `+${money(member.balance, currency)} ahead`
                         : "All set"}
                   </span>
                 </div>
@@ -293,7 +332,7 @@ export function OverviewView({
             <br />
             <em>Small group chat.</em>
           </h2>
-          <p>Ask what happens if plans change. Get answers computed from your group&apos;s actual numbers.</p>
+          <p>Ask what happens if plans change. Get answers computed from {groupName}&apos;s actual numbers.</p>
 
           <div className="suggestions">
             <button type="button" onClick={() => onAskAgent("What happens if one member cancels?")}>

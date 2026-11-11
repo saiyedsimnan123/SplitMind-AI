@@ -1,6 +1,23 @@
-import { formatINR, type Member } from "@/lib/finance";
+import { formatCurrency, PLAN_TYPE_LABELS, type Member } from "@/lib/finance";
+import type { CurrencyCode, PlanType } from "@/lib/types";
 
-export const money = (value: number) => formatINR(value);
+export const money = (value: number, currency: CurrencyCode = "INR") =>
+  formatCurrency(value, currency);
+
+export function formatGroupDates(startDate: string, endDate?: string | null): string {
+  const fmt = (raw: string) => {
+    const parsed = new Date(`${raw}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return raw;
+    return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+  if (!startDate) return "Flexible dates";
+  if (!endDate || endDate === startDate) return fmt(startDate);
+  return `${fmt(startDate)} – ${fmt(endDate)}`;
+}
+
+export function planTypeLabel(planType: PlanType): string {
+  return PLAN_TYPE_LABELS[planType] ?? "Shared plan";
+}
 
 export function BrandMark() {
   return (

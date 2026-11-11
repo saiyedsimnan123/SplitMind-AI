@@ -1,24 +1,39 @@
 "use client";
 
 import { ArrowRight, CheckCircle2, LockKeyhole, ShieldAlert, ShieldCheck } from "lucide-react";
-import type { Member } from "@/lib/finance";
-import type { MemberBalance, SettlementTransfer } from "@/lib/types";
+import type {
+  CurrencyCode,
+  GroupMember,
+  MemberBalance,
+  SettlementRecord,
+  SettlementTransfer,
+} from "@/lib/types";
 import { Avatar, money } from "@/components/ui";
 
 export function SettlementsView({
+  groupName,
+  currency,
+  isArchived,
   members,
   balances,
   transfers,
+  recordedSettlements,
   settlementError,
   totalBudget,
   totalSpent,
+  onRequestRecordSettlement,
 }: {
-  members: Member[];
+  groupName: string;
+  currency: CurrencyCode;
+  isArchived: boolean;
+  members: GroupMember[];
   balances: MemberBalance[];
   transfers: SettlementTransfer[];
+  recordedSettlements: SettlementRecord[];
   settlementError: string;
   totalBudget: number;
   totalSpent: number;
+  onRequestRecordSettlement: (transfer: SettlementTransfer) => void;
 }) {
   const remaining = totalBudget - totalSpent;
 
@@ -27,17 +42,17 @@ export function SettlementsView({
       <section className="panel full-panel">
         <div className="panel-heading">
           <div>
-            <div className="section-kicker">FEWEST TRANSFERS, CLEAR MATH</div>
+            <div className="section-kicker">{groupName.toUpperCase()} · FEWEST TRANSFERS</div>
             <h2>A fair way to settle up.</h2>
           </div>
           <span className="save-badge">
-            <ShieldCheck size={14} /> Suggested, not sent
+            <ShieldCheck size={14} /> Suggested &amp; recordable
           </span>
         </div>
 
         <p className="muted-copy">
-          Calculated deterministically from submitted expenses to date. No automatic transfer or wallet debit is
-          initiated here.
+          Calculated deterministically from submitted expenses in {groupName}. Record transfers once settled
+          offline or via bank/UPI/PayPal to update remaining group balances.
         </p>
 
         {settlementError ? (
@@ -51,7 +66,7 @@ export function SettlementsView({
         ) : transfers.length === 0 ? (
           <div className="empty-state">
             <CheckCircle2 size={22} />
-            <strong>Everything is balanced.</strong>
+            <strong>Everything is balanced in {groupName}.</strong>
             <span>Every member&apos;s contribution matches their equal share of submitted spend.</span>
           </div>
         ) : (
@@ -62,21 +77,52 @@ export function SettlementsView({
               return (
                 <div className="settlement-row" role="listitem" key={`${transfer.from}-${transfer.to}-${index}`}>
                   <div className="settlement-party">
-                    <Avatar member={fromMember} size="sm" />
+                    {fromMember && <Avatar member={fromMember} size="sm" />}
                     <strong>{transfer.from}</strong>
                   </div>
                   <span className="settlement-verb">
                     pays <ArrowRight size={14} className="settlement-arrow" />
                   </span>
                   <div className="settlement-party">
-                    <Avatar member={toMember} size="sm" />
+                    {toMember && <Avatar member={toMember} size="sm" />}
                     <strong>{transfer.to}</strong>
                   </div>
-                  <b className="tabular">{money(transfer.amount)}</b>
+                  <b className="tabular">{money(transfer.amount, currency)}</b>
+                  {!isArchived && (
+                    <button
+                      type="button"
+                      className="button button-outline button-sm"
+                      onClick={() => onRequestRecordSettlement(transfer)}
+                    >
+                      Mark settled
+                    </button>
+                  )}
                 </div>
               );
             })}
           </div>
+        )}
+
+        {recordedSettlements.length > 0 && (
+          <>
+            <h3 className="ledger-heading">Recorded settlement history</h3>
+            <div className="audit-list">
+              {recordedSettlements.map((item) => (
+                <div className="audit-row" key={item.id}>
+                  <span className="activity-icon activity-verified">
+                    <CheckCircle2 size={15} />
+                  </span>
+                  <span className="audit-copy">
+                    <strong>
+                      {item.fromName} paid {item.toName} · {money(item.amount, item.currency)}
+                    </strong>
+                    <small>{item.note || "Recorded settlement"}</small>
+                  </span>
+                  <time>{new Date(item.settledAt).toLocaleDateString()}</time>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         <div className="safety-note">
@@ -92,11 +138,13 @@ export function SettlementsView({
         <div className="balance-summary">
           <div>
             <span>Total submitted spend</span>
-            <strong className="tabular">{money(totalSpent)}</strong>
+            <strong className="tabular">{money(totalSpent, currency)}</strong>
           </div>
           <div>
             <span>Budget remaining</span>
-            <strong className={`tabular ${remaining < 0 ? "warn-text" : ""}`}>{money(remaining)}</strong>
+            <strong className={`tabular ${remaining < 0 ? "warn-text" : ""}`}>
+              {money(remaining, currency)}
+            </strong>
           </div>
           <div>
             <span>Suggested transfers</span>
@@ -118,7 +166,9 @@ export function SettlementsView({
                   member.outstanding >= 1 ? "warn-text" : member.balance >= 1 ? "positive" : ""
                 }`}
               >
-                {member.balance >= 0.01 ? `+${money(member.balance)}` : money(member.balance)}
+                {member.balance >= 0.01
+                  ? `+${money(member.balance, currency)}`
+                  : money(member.balance, currency)}
               </strong>
             </div>
           ))}
