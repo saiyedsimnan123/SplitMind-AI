@@ -33,41 +33,70 @@ export function BrandMark({ size = 28 }: { size?: number }) {
       <svg
         width={size}
         height={size}
-        viewBox="0 0 36 36"
+        viewBox="0 0 40 40"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          <linearGradient id="sm-left-mind" x1="4" y1="6" x2="18" y2="30" gradientUnits="userSpaceOnUse">
+          <linearGradient id="sm-vessel" x1="2" y1="2" x2="38" y2="38" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#0B1630" />
+            <stop offset="100%" stopColor="#060D1E" />
+          </linearGradient>
+          <linearGradient id="sm-left-mind" x1="8" y1="10" x2="21" y2="29" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#60A5FA" />
             <stop offset="100%" stopColor="#2563EB" />
           </linearGradient>
-          <linearGradient id="sm-right-mind" x1="18" y1="6" x2="32" y2="30" gradientUnits="userSpaceOnUse">
+          <linearGradient id="sm-right-mind" x1="20" y1="10" x2="32" y2="29" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#A78BFA" />
             <stop offset="100%" stopColor="#6366F1" />
           </linearGradient>
+          <linearGradient id="sm-core-teal" x1="16" y1="16" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#5EEAD4" />
+            <stop offset="100%" stopColor="#0D9488" />
+          </linearGradient>
         </defs>
         <rect
-          x="1"
-          y="1"
-          width="34"
-          height="34"
-          rx="10"
-          fill="#0B162C"
-          stroke="rgba(148, 163, 184, 0.28)"
+          x="1.5"
+          y="1.5"
+          width="37"
+          height="37"
+          rx="11"
+          fill="url(#sm-vessel)"
+          stroke="rgba(96, 165, 250, 0.38)"
+          strokeWidth="1.2"
         />
         <path
-          d="M16.2 9.5C11.4 9.5 8 13.1 8 18C8 22.9 11.4 26.5 16.2 26.5V22.1C13.8 22.1 12.2 20.4 12.2 18C12.2 15.6 13.8 13.9 16.2 13.9V9.5Z"
-          fill="url(#sm-left-mind)"
+          d="M11 12.5C14.8 12.5 17 15.8 20 20C17 24.2 14.8 27.5 11 27.5"
+          stroke="url(#sm-left-mind)"
+          strokeWidth="2.1"
+          strokeLinecap="round"
         />
         <path
-          d="M19.8 9.5C24.6 9.5 28 13.1 28 18C28 22.9 24.6 26.5 19.8 26.5V22.1C22.2 22.1 23.8 20.4 23.8 18C23.8 15.6 22.2 13.9 19.8 13.9V9.5Z"
-          fill="url(#sm-right-mind)"
+          d="M29 12.5C25.2 12.5 23 15.8 20 20C23 24.2 25.2 27.5 29 27.5"
+          stroke="url(#sm-right-mind)"
+          strokeWidth="2.1"
+          strokeLinecap="round"
         />
-        <line x1="14.5" y1="18" x2="21.5" y2="18" stroke="#2DD4BF" strokeWidth="2.2" strokeLinecap="round" />
-        <circle cx="18" cy="18" r="2.7" fill="#2DD4BF" />
-        <circle cx="15.4" cy="11.7" r="1.35" fill="#93C5FD" />
-        <circle cx="20.6" cy="24.3" r="1.35" fill="#C4B5FD" />
+        <path
+          d="M11 12.5C16.5 10.2 23.5 10.2 29 12.5"
+          stroke="#60A5FA"
+          strokeOpacity="0.45"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
+        <path
+          d="M11 27.5C16.5 29.8 23.5 29.8 29 27.5"
+          stroke="#A78BFA"
+          strokeOpacity="0.45"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
+        <circle cx="11" cy="12.5" r="2.6" fill="#60A5FA" />
+        <circle cx="11" cy="27.5" r="2.6" fill="#3B82F6" />
+        <circle cx="29" cy="12.5" r="2.6" fill="#A78BFA" />
+        <circle cx="29" cy="27.5" r="2.6" fill="#8B5CF6" />
+        <polygon points="20,14.6 25.4,20 20,25.4 14.6,20" fill="url(#sm-core-teal)" />
+        <circle cx="20" cy="20" r="2.1" fill="#FFFFFF" />
       </svg>
     </span>
   );

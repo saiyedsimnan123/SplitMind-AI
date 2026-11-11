@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { LoginForm } from "@/components/auth/LoginForm";
@@ -29,18 +28,9 @@ export default async function LoginPage({
   return (
     <AuthShell
       activeRoute="login"
-      kicker="ONE GROUP. ONE SMART MONEY MIND."
-      title="Welcome back"
-      subtitle="Sign in with Google, Email, or Phone OTP (+91) to manage group budgets, receipts, and smart settlements."
+      title="Welcome Back"
+      subtitle="Sign in with your email and password to manage shared budgets, verified receipts, and smart settlements."
       authConfigured={authConfigured}
-      footer={
-        <span>
-          Forgot your password?{" "}
-          <Link href="/forgot-password" className="inline-link">
-            Recover account access
-          </Link>
-        </span>
-      }
     >
       <LoginForm
         authConfigured={authConfigured}

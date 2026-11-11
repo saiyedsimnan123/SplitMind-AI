@@ -11,7 +11,6 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildAuditEvent } from "@/lib/audit";
 import { createInitialGoaGroup } from "@/lib/demo-data";
@@ -150,7 +149,6 @@ export function SplitMindApp({
   initialAuditEvents: AuditEvent[];
   initialDbError?: string;
 }) {
-  const router = useRouter();
   const [screen, setScreen] = useState<Screen>("Overview");
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("account");
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(initialUser);
@@ -920,8 +918,7 @@ export function SplitMindApp({
         await refreshServerAudit();
         showToast("success", "Revoked all other active sessions.");
       } else {
-        router.push("/login");
-        router.refresh();
+        window.location.assign("/login");
       }
     } catch (error) {
       showToast("error", error instanceof Error ? error.message : "Could not complete session action.");

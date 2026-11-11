@@ -7,9 +7,9 @@ export function PhoneInputField({
   countryCode,
   localNumber,
   disabled = false,
-  required = true,
-  label = "Mobile phone number",
-  hint,
+  required = false,
+  label = "Phone number (optional)",
+  hint = "Optional · Normalized to international format. No SMS verification required.",
   onChangeCountryCode,
   onChangeLocalNumber,
 }: {
@@ -27,7 +27,7 @@ export function PhoneInputField({
       <span>{label}</span>
       <div className="phone-input-group">
         <select
-          aria-label="Country code"
+          aria-label="Country dial code"
           className="phone-country-select"
           value={countryCode}
           onChange={(e) => onChangeCountryCode(e.target.value)}
@@ -55,9 +55,7 @@ export function PhoneInputField({
           />
         </div>
       </div>
-      <small className="phone-input-hint">
-        {hint ?? `SMS OTP via Supabase Phone Auth & Twilio (${countryCode} default)`}
-      </small>
+      {hint && <small className="phone-input-hint">{hint}</small>}
     </div>
   );
 }

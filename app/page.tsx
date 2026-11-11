@@ -62,11 +62,7 @@ export default async function HomePage() {
   const isDemo = isDemoAuthUser(session.user);
   const providerLabel = isDemo
     ? "Supabase Anonymous Auth · Isolated Demo"
-    : profile.authProvider === "google"
-      ? "Google OAuth (Supabase PKCE · HttpOnly)"
-      : profile.authProvider === "phone"
-        ? "Phone OTP (Supabase + Twilio SMS · HttpOnly)"
-        : "Supabase Auth · HttpOnly session";
+    : "Email & Password (Supabase Auth · HttpOnly)";
 
   const sessionSummary: SessionSummary = {
     authenticated: true,

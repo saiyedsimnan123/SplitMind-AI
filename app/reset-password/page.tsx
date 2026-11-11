@@ -22,14 +22,13 @@ export default async function ResetPasswordPage({
   return (
     <AuthShell
       activeRoute="reset"
-      kicker="SET NEW CREDENTIALS"
-      title="Choose a new password"
-      subtitle="Use a strong password with at least 8 characters to secure your SplitMind account."
+      title="Set New Password"
+      subtitle="Choose a strong password with at least 8 characters to restore access to your account."
       authConfigured={authConfigured}
       footer={
         <span>
           <Link href="/login" className="inline-link">
-            Return to sign in
+            Back to Sign In
           </Link>
         </span>
       }

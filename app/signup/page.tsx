@@ -19,15 +19,14 @@ export default async function SignupPage() {
   return (
     <AuthShell
       activeRoute="signup"
-      kicker="CREATE ACCOUNT"
-      title="Create your account"
-      subtitle="Launch isolated multi-group ledgers for trips, roommates, events, and shared projects."
+      title="Create Your Account"
+      subtitle="Set up your workspace in seconds and coordinate shared group finances with clarity."
       authConfigured={authConfigured}
       footer={
         <span>
-          Already have a SplitMind account?{" "}
+          Already have an account?{" "}
           <Link href="/login" className="inline-link">
-            Sign in
+            Sign In
           </Link>
         </span>
       }
