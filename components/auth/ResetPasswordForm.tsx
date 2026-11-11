@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, KeyRound, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function ResetPasswordForm({
   authConfigured,
@@ -22,10 +22,49 @@ export function ResetPasswordForm({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [establishingRecovery, setEstablishingRecovery] = useState(false);
+  const [sessionReady, setSessionReady] = useState(hasRecoverySession);
   const [error, setError] = useState(initialError ?? "");
   const [success, setSuccess] = useState(false);
 
-  const canAttemptReset = authConfigured && (hasRecoverySession || Boolean(tokenHash));
+  useEffect(() => {
+    if (!authConfigured || sessionReady || typeof window === "undefined") return;
+    const rawHash = window.location.hash.replace(/^#/, "");
+    if (!rawHash) return;
+
+    const hashParams = new URLSearchParams(rawHash);
+    const errorDesc = hashParams.get("error_description");
+    if (errorDesc) {
+      setError(errorDesc);
+      window.history.replaceState({}, "", window.location.pathname + window.location.search);
+      return;
+    }
+
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+    if (!accessToken || !refreshToken) return;
+
+    window.history.replaceState({}, "", window.location.pathname + window.location.search);
+    setEstablishingRecovery(true);
+    fetch("/api/auth/recovery-session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ accessToken, refreshToken }),
+    })
+      .then(async (res) => {
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error ?? "Recovery link is invalid or expired.");
+        setSessionReady(true);
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Could not verify recovery link.");
+      })
+      .finally(() => {
+        setEstablishingRecovery(false);
+      });
+  }, [authConfigured, sessionReady]);
+
+  const canAttemptReset = authConfigured && (sessionReady || Boolean(tokenHash));
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -80,7 +119,16 @@ export function ResetPasswordForm({
 
   return (
     <form onSubmit={submit} noValidate>
-      {authConfigured && !hasRecoverySession && !tokenHash && (
+      {establishingRecovery && (
+        <div className="payment-banner payment-banner-pending" role="status" style={{ marginBottom: 14 }}>
+          <Loader2 size={16} className="spin" />
+          <div className="payment-banner-copy">
+            <strong>Verifying recovery link…</strong>
+          </div>
+        </div>
+      )}
+
+      {authConfigured && !establishingRecovery && !sessionReady && !tokenHash && (
         <div className="receipt-missing-box" role="status" style={{ marginBottom: 14 }}>
           <div>
             <strong>Recovery session missing</strong>
@@ -127,7 +175,7 @@ export function ResetPasswordForm({
         </p>
       )}
 
-      <button type="submit" className="button button-dark full-button" disabled={busy || !canAttemptReset}>
+      <button type="submit" className="button button-primary full-button" disabled={busy || !canAttemptReset}>
         {busy ? <Loader2 size={15} className="spin" /> : <KeyRound size={15} />}
         {busy ? "Updating password..." : "Update password"}
       </button>

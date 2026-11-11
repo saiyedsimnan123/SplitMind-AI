@@ -12,10 +12,11 @@
 - **Settings → Security & Activity**: Dedicated audit trail separating Authentication/Session events from Group/Financial ledger events, with search and filters by event type, group, status, and date, plus active session/device overview and session revocation controls (`local`, `others`, `global`).
 - **PayPal Sandbox Checkout**: Server-side order creation and capture verification with client idempotency protection and Supabase ledger persistence (`public.splitmind_payments`).
 
-## Local Preview vs. Live Supabase Mode
+## Authentication-First Access
 
-- **Without Supabase credentials (`SUPABASE_URL`, `SUPABASE_ANON_KEY`)**: The app runs in an explicit **Local Preview Mode** (stored in browser storage) so you can explore multi-group creation, switching, budgets, expenses, and settlements without fake authentication. Authentication routes honestly report that Supabase Auth is unconfigured and refuse fake login simulation.
-- **With Supabase credentials configured**: Middleware and server checks enforce authenticated access across `/`, `/api/groups/*`, `/api/profile`, `/api/security/*`, `/api/payments/*`, and `/api/agent`. Every group query/mutation enforces membership/ownership permissions and PostgreSQL RLS (`auth.uid()`).
+- **Unauthenticated visitors**: Middleware and server checks redirect `/` and `/dashboard` (and block `/api/groups/*`, `/api/profile`, `/api/security/*`) to `/login`. Authentication is always the entry point—there is no unauthenticated dashboard bypass or `localStorage` login simulation.
+- **Without Supabase credentials (`SUPABASE_URL`, `SUPABASE_ANON_KEY`)**: The `/login`, `/signup`, `/forgot-password`, and `/reset-password` pages honestly report that Supabase Auth must be configured in `.env.local` before signing in.
+- **With Supabase credentials configured**: Full Supabase Auth sign-up, sign-in (`HttpOnly` cookies with Remember-me duration support), password recovery, session refresh/revocation, PostgreSQL Row Level Security (`auth.uid()`), and immutable `security_audit_events` are active.
 
 ## Run locally
 
@@ -38,7 +39,9 @@ Open [http://localhost:3000](http://localhost:3000).
    *(Alternatively, [`supabase/schema.sql`](./supabase/schema.sql) contains the consolidated schema.)*
 3. In **Supabase Authentication → URL Configuration**, add your redirect URLs:
    - `http://localhost:3000/api/auth/confirm`
+   - `http://localhost:3000/reset-password`
    - `https://<your-domain>/api/auth/confirm`
+   - `https://<your-domain>/reset-password`
 4. Configure `.env.local` with `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `APP_URL`.
 
 ## Environment variables

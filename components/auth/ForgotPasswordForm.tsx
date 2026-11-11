@@ -76,7 +76,7 @@ export function ForgotPasswordForm({ authConfigured }: { authConfigured: boolean
         </p>
       )}
 
-      <button type="submit" className="button button-dark full-button" disabled={busy || !authConfigured}>
+      <button type="submit" className="button button-primary full-button" disabled={busy || !authConfigured}>
         {busy ? <Loader2 size={15} className="spin" /> : <Mail size={15} />}
         {busy ? "Sending reset link..." : "Send password reset link"}
       </button>

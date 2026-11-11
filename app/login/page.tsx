@@ -28,15 +28,16 @@ export default async function LoginPage({
 
   return (
     <AuthShell
-      kicker="SECURE ACCESS"
-      title="Sign in to SplitMind"
-      subtitle="Access your shared groups, expense ledgers, and settlement plans."
+      activeRoute="login"
+      kicker="WELCOME BACK"
+      title="Sign in to SplitMind AI"
+      subtitle="Access your isolated group budgets, expense proof ledgers, and AI financial agent."
       authConfigured={authConfigured}
       footer={
         <span>
-          New to SplitMind?{" "}
+          New to SplitMind AI?{" "}
           <Link href="/signup" className="inline-link">
-            Create an account
+            Create your account
           </Link>
         </span>
       }

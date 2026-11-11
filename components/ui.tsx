@@ -1,3 +1,11 @@
+import {
+  Bot,
+  Calculator,
+  CreditCard,
+  GitCompareArrows,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { formatCurrency, PLAN_TYPE_LABELS, type Member } from "@/lib/finance";
 import type { CurrencyCode, PlanType } from "@/lib/types";
 
@@ -30,6 +38,37 @@ export function BrandMark() {
   );
 }
 
+export type EngineId =
+  | "agent"
+  | "smartsplit"
+  | "intentpay"
+  | "proof"
+  | "moneytwin"
+  | "settlement";
+
+const ENGINE_META: Record<
+  EngineId,
+  { label: string; tone: "indigo" | "teal" | "blue" | "navy"; icon: typeof Bot }
+> = {
+  agent: { label: "AI Group Financial Agent", tone: "indigo", icon: Bot },
+  smartsplit: { label: "SmartSplit Engine", tone: "blue", icon: Calculator },
+  intentpay: { label: "IntentPay Engine", tone: "navy", icon: CreditCard },
+  proof: { label: "Proof Engine", tone: "teal", icon: ShieldCheck },
+  moneytwin: { label: "MoneyTwin Engine", tone: "indigo", icon: Sparkles },
+  settlement: { label: "Settlement Intelligence", tone: "teal", icon: GitCompareArrows },
+};
+
+export function EngineBadge({ engine }: { engine: EngineId }) {
+  const meta = ENGINE_META[engine];
+  const Icon = meta.icon;
+  return (
+    <span className={`engine-badge engine-badge-${meta.tone}`}>
+      <Icon size={12} />
+      <span>{meta.label}</span>
+    </span>
+  );
+}
+
 export function Avatar({
   member,
   size = "md",
@@ -46,7 +85,7 @@ export function Avatar({
 
 export function ProgressBar({
   value,
-  color = "var(--emerald)",
+  color = "var(--brand)",
   label,
 }: {
   value: number;

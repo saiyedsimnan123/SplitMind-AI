@@ -149,10 +149,12 @@ export function applySessionCookies(
     sessionId?: string;
     sessionCreatedAt?: string;
     expiresIn?: number;
+    rememberMe?: boolean;
   },
   request?: Request | NextRequest,
 ) {
   const secure = isSecureCookieContext(request);
+  const persistent = session.rememberMe !== false;
   const maxAge = Math.max(300, Math.min(session.expiresIn ?? 3600, 60 * 60 * 24 * 7));
   const refreshMaxAge = 60 * 60 * 24 * 30;
   const sessionId = session.sessionId || deriveSafeSessionId(session.accessToken);
@@ -163,28 +165,28 @@ export function applySessionCookies(
     sameSite: "lax",
     secure,
     path: "/",
-    maxAge,
+    ...(persistent ? { maxAge } : {}),
   });
   response.cookies.set(REFRESH_COOKIE, session.refreshToken, {
     httpOnly: true,
     sameSite: "lax",
     secure,
     path: "/",
-    maxAge: refreshMaxAge,
+    ...(persistent ? { maxAge: refreshMaxAge } : {}),
   });
   response.cookies.set(SESSION_ID_COOKIE, sessionId, {
     httpOnly: true,
     sameSite: "lax",
     secure,
     path: "/",
-    maxAge: refreshMaxAge,
+    ...(persistent ? { maxAge: refreshMaxAge } : {}),
   });
   response.cookies.set(SESSION_CREATED_COOKIE, createdAt, {
     httpOnly: true,
     sameSite: "lax",
     secure,
     path: "/",
-    maxAge: refreshMaxAge,
+    ...(persistent ? { maxAge: refreshMaxAge } : {}),
   });
 }
 

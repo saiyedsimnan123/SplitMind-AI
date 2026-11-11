@@ -4,6 +4,7 @@ import { POST as loginPost } from "@/app/api/auth/login/route";
 import { POST as logoutPost } from "@/app/api/auth/logout/route";
 import { POST as resetPasswordPost } from "@/app/api/auth/reset-password/route";
 import { GET as sessionGet } from "@/app/api/auth/session/route";
+import { POST as recoverySessionPost } from "@/app/api/auth/recovery-session/route";
 import { POST as signupPost } from "@/app/api/auth/signup/route";
 import { safeRedirectPath } from "@/lib/supabase/auth";
 
@@ -105,10 +106,25 @@ describe("Supabase authentication and session handling", () => {
     expect(setCookie).toContain("sm_access_token=");
     expect(setCookie).toContain("sm_refresh_token=");
     expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("Max-Age=");
     expect(auditPayloads.map((e) => e.event_type)).toEqual([
       "auth.login.succeeded",
       "auth.session.created",
     ]);
+
+    const sessionOnlyRes = await loginPost(
+      new Request("http://localhost:3000/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json", "user-agent": "Chrome/125.0 Linux" },
+        body: JSON.stringify({
+          email: "alex@example.com",
+          password: "correct-horse-battery",
+          rememberMe: false,
+        }),
+      }),
+    );
+    expect(sessionOnlyRes.status).toBe(200);
+    expect(sessionOnlyRes.headers.get("set-cookie") ?? "").not.toContain("Max-Age=");
   });
 
   it("logs failed login attempts with masked email and never logs the password", async () => {
@@ -265,5 +281,50 @@ describe("Supabase authentication and session handling", () => {
     expect(safeRedirectPath("/reset-password")).toBe("/reset-password");
     expect(safeRedirectPath("//evil.example.com")).toBe("/");
     expect(safeRedirectPath("https://evil.example.com")).toBe("/");
+  });
+
+  it("verifies recovery tokens server-side and sets HttpOnly cookies via recovery-session", async () => {
+    setTestSupabaseEnv();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/auth/v1/user")) {
+          return Response.json({
+            id: "u-rec",
+            email: "alex@example.com",
+            user_metadata: { full_name: "Alex Kim" },
+          });
+        }
+        if (url.includes("/rest/v1/profiles")) {
+          return Response.json([
+            {
+              id: "u-rec",
+              email: "alex@example.com",
+              full_name: "Alex Kim",
+              initials: "AK",
+              avatar_color: "coral",
+              default_currency: "INR",
+              workspace_initialized: true,
+            },
+          ]);
+        }
+        if (url.includes("/rest/v1/security_audit_events")) {
+          return new Response(null, { status: 201 });
+        }
+        return new Response("{}", { status: 200 });
+      }),
+    );
+
+    const res = await recoverySessionPost(
+      new Request("http://localhost:3000/api/auth/recovery-session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ accessToken: "rec-access", refreshToken: "rec-refresh" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("set-cookie")).toContain("sm_access_token=rec-access");
+    expect(res.headers.get("set-cookie")).toContain("HttpOnly");
   });
 });

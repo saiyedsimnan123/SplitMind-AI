@@ -73,16 +73,43 @@ import { SettlementsView } from "@/components/views/SettlementsView";
 const WORKSPACE_STORAGE_KEY = "splitmind-workspace-v2";
 const LEGACY_STORAGE_KEY = "splitmind-demo";
 
-const SCREEN_COPY: Record<Screen, { subtitle: string }> = {
-  Overview: { subtitle: "A little less back-and-forth. A lot more clarity on where this group stands." },
-  Groups: { subtitle: "Switch between shared plans, manage rosters, organizers, and group details." },
-  "Budget planner": { subtitle: "Update group budgets, inspect remaining balance, and run MoneyTwin scenarios." },
-  Expenses: { subtitle: "Every submission stays unverified until a person opens the receipt and confirms." },
-  Payments: { subtitle: "USD Sandbox checkout with client idempotency and server-side capture verification." },
-  Settlements: { subtitle: "Minimum-transfer settlement suggestions derived from submitted spend." },
-  "AI Financial Agent": { subtitle: "Conversational explanations backed by deterministic SplitMind calculations." },
-  Activity: { subtitle: "Group paper trail alongside your complete expense ledger." },
-  Settings: { subtitle: "Manage profile preferences, session security, and audit activity." },
+const SCREEN_COPY: Record<Screen, { title: string; subtitle: string }> = {
+  Overview: {
+    title: "Financial overview",
+    subtitle: "Real-time shared budget health, Proof Engine status, and SmartSplit member positions.",
+  },
+  Groups: {
+    title: "Groups & Members",
+    subtitle: "Create isolated workspaces, switch active plans, manage rosters, and track contributions.",
+  },
+  "Budget planner": {
+    title: "Budget & MoneyTwin",
+    subtitle: "Adjust category allocations, update group caps, and stress-test scenarios non-destructively.",
+  },
+  Expenses: {
+    title: "Expenses & Proof Engine",
+    subtitle: "Every submission stays unverified until a member reviews the attached receipt.",
+  },
+  Payments: {
+    title: "IntentPay Checkout",
+    subtitle: "Idempotent USD Sandbox checkout with server-side PayPal capture verification.",
+  },
+  Settlements: {
+    title: "Settlement Intelligence",
+    subtitle: "Minimum-transfer settlement suggestions and recorded reimbursement history.",
+  },
+  "AI Financial Agent": {
+    title: "AI Group Financial Agent",
+    subtitle: "Conversational insights grounded in deterministic SplitMind financial math.",
+  },
+  Activity: {
+    title: "Group Activity",
+    subtitle: "Group paper trail alongside your complete expense ledger.",
+  },
+  Settings: {
+    title: "Account Settings",
+    subtitle: "Manage profile preferences, credentials, active sessions, and security audit trails.",
+  },
 };
 
 type PendingConfirm =
@@ -1360,12 +1387,12 @@ export function SplitMindApp({
               <h1>
                 {screen === "Overview" ? (
                   <>
-                    Money stuff, <span>sorted.</span>
+                    {activeGroup.name} <span>Command</span>
                   </>
                 ) : screen === "Settings" && settingsTab === "security" ? (
                   "Security & Activity"
                 ) : (
-                  screen
+                  SCREEN_COPY[screen].title
                 )}
               </h1>
               <p className="page-subtitle">
@@ -1394,8 +1421,8 @@ export function SplitMindApp({
               >
                 <Plus size={15} /> Add expense
               </button>
-              <button type="button" className="button button-dark" onClick={() => pickScreen("Budget planner")}>
-                <Sparkles size={15} /> Plan together
+              <button type="button" className="button button-primary" onClick={() => pickScreen("Budget planner")}>
+                <Sparkles size={15} /> MoneyTwin
               </button>
             </div>
           </div>

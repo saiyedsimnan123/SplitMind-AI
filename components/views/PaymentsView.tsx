@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   AlertCircle,
   ArrowUpRight,
@@ -10,6 +11,7 @@ import {
   LockKeyhole,
   ShieldCheck,
 } from "lucide-react";
+import { EngineBadge } from "@/components/ui";
 import type { CurrencyCode, PaymentFeedback } from "@/lib/types";
 
 export function PaymentsView({
@@ -39,7 +41,10 @@ export function PaymentsView({
       <section className="panel payment-panel">
         <div className="panel-heading">
           <div>
-            <div className="section-kicker">{groupName.toUpperCase()} · PAYPAL SANDBOX</div>
+            <div className="panel-kicker-row">
+              <span className="section-kicker">{groupName.toUpperCase()} · PAYPAL SANDBOX</span>
+              <EngineBadge engine="intentpay" />
+            </div>
             <h2>Payments, with a paper trail.</h2>
           </div>
           <span className="save-badge">
@@ -85,7 +90,7 @@ export function PaymentsView({
 
         <button
           type="button"
-          className="button button-dark"
+          className="button button-primary"
           onClick={onCreateOrder}
           disabled={paymentBusy || !paymentAmount.trim()}
         >
@@ -128,8 +133,18 @@ export function PaymentsView({
       </section>
 
       <aside className="panel">
-        <div className="section-kicker">BEFORE YOU START</div>
+        <div className="section-kicker">VERIFICATION ARCHITECTURE</div>
         <h2>What happens next?</h2>
+        <div style={{ margin: "14px 0" }}>
+          <Image
+            src="/images/security-vault.svg"
+            alt="Server-side payment capture verification and security shield"
+            width={220}
+            height={140}
+            unoptimized
+            style={{ width: "100%", height: "auto", borderRadius: 10 }}
+          />
+        </div>
 
         <div className="steps-list">
           <div>

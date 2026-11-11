@@ -91,7 +91,7 @@ export function ConfirmDialog({
           </button>
           <button
             type="button"
-            className={`button ${tone === "danger" ? "button-danger" : "button-dark"}`}
+            className={`button ${tone === "danger" ? "button-danger" : "button-primary"}`}
             onClick={onConfirm}
             disabled={busy}
           >
@@ -304,7 +304,7 @@ export function GroupModal({
             <button type="button" className="button button-outline" onClick={onClose} disabled={busy}>
               Cancel
             </button>
-            <button className="button button-dark" type="submit" disabled={busy}>
+            <button className="button button-primary" type="submit" disabled={busy}>
               {busy ? (
                 <Loader2 size={15} className="spin" />
               ) : mode === "create" ? (
@@ -560,7 +560,7 @@ export function ExpenseModal({
             <button type="button" className="button button-outline" onClick={onClose} disabled={busy}>
               Cancel
             </button>
-            <button className="button button-dark" type="submit" disabled={busy}>
+            <button className="button button-primary" type="submit" disabled={busy}>
               {busy ? <Loader2 size={15} className="spin" /> : isEdit ? <Save size={15} /> : <Plus size={15} />}
               {busy ? "Saving..." : isEdit ? "Save changes" : "Add unverified expense"}
             </button>
@@ -696,7 +696,7 @@ export function ReceiptReviewModal({
           {hasReceipt && !expense.verified && (
             <button
               type="button"
-              className="button button-dark"
+              className="button button-primary"
               disabled={!acknowledged}
               onClick={() => onConfirmVerify(expense.id)}
             >
@@ -853,7 +853,7 @@ export function MemberModal({
             <button type="button" className="button button-outline" onClick={onClose} disabled={busy}>
               Cancel
             </button>
-            <button className="button button-dark" type="submit" disabled={busy}>
+            <button className="button button-primary" type="submit" disabled={busy}>
               {busy ? (
                 <Loader2 size={15} className="spin" />
               ) : mode === "add" ? (
@@ -1003,7 +1003,7 @@ export function ContributionModal({
             <button type="button" className="button button-outline" onClick={onClose} disabled={busy}>
               Cancel
             </button>
-            <button type="submit" className="button button-dark" disabled={busy}>
+            <button type="submit" className="button button-primary" disabled={busy}>
               {busy ? <Loader2 size={15} className="spin" /> : <Plus size={15} />}
               {busy ? "Recording..." : "Record contribution"}
             </button>

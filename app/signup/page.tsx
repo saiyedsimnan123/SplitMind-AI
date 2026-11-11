@@ -18,15 +18,16 @@ export default async function SignupPage() {
 
   return (
     <AuthShell
+      activeRoute="signup"
       kicker="GET STARTED"
       title="Create your workspace"
-      subtitle="Set up your personal profile to organize trips, roommates, events, and projects."
+      subtitle="Launch isolated multi-group ledgers for trips, roommates, events, and team projects."
       authConfigured={authConfigured}
       footer={
         <span>
           Already have an account?{" "}
           <Link href="/login" className="inline-link">
-            Sign in
+            Sign in instead
           </Link>
         </span>
       }

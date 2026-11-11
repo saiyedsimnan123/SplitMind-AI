@@ -10,9 +10,10 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthShell
+      activeRoute="forgot"
       kicker="ACCOUNT RECOVERY"
       title="Reset your password"
-      subtitle="Enter your email address and we'll send a secure recovery link through Supabase Auth."
+      subtitle="Enter your email address and we'll send a secure Supabase recovery link."
       authConfigured={authConfigured}
       footer={
         <span>

@@ -19,6 +19,7 @@ export function LoginForm({
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(initialError ?? "");
@@ -44,7 +45,7 @@ export function LoginForm({
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: trimmedEmail, password }),
+        body: JSON.stringify({ email: trimmedEmail, password, rememberMe }),
       });
       const data = (await response.json()) as { error?: string };
       if (!response.ok) {
@@ -71,13 +72,13 @@ export function LoginForm({
       )}
 
       <label className="form-label">
-        Email address
+        Work or personal email
         <input
           type="email"
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
+          placeholder="you@company.com"
           disabled={busy}
           required
         />
@@ -111,15 +112,25 @@ export function LoginForm({
         </div>
       </label>
 
+      <label className="remember-check">
+        <input
+          type="checkbox"
+          checked={rememberMe}
+          onChange={(e) => setRememberMe(e.target.checked)}
+          disabled={busy}
+        />
+        <span>Keep me signed in on this device (30-day HttpOnly session)</span>
+      </label>
+
       {error && (
         <p className="form-error" role="alert">
           {error}
         </p>
       )}
 
-      <button type="submit" className="button button-dark full-button" disabled={busy || !authConfigured}>
+      <button type="submit" className="button button-primary full-button" disabled={busy || !authConfigured}>
         {busy ? <Loader2 size={15} className="spin" /> : <LogIn size={15} />}
-        {busy ? "Signing in..." : "Sign in"}
+        {busy ? "Verifying session..." : "Sign in to SplitMind"}
       </button>
     </form>
   );

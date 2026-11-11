@@ -237,7 +237,7 @@ export function SettingsView({
                 )}
 
                 <div className="proposal-actions">
-                  <button type="submit" className="button button-dark" disabled={profileBusy}>
+                  <button type="submit" className="button button-primary" disabled={profileBusy}>
                     {profileBusy ? <Loader2 size={14} className="spin" /> : <Save size={14} />}
                     {profileBusy ? "Saving..." : "Save account settings"}
                   </button>
@@ -313,7 +313,7 @@ export function SettingsView({
                 )}
 
                 <div className="proposal-actions">
-                  <button type="submit" className="button button-dark" disabled={passwordBusy}>
+                  <button type="submit" className="button button-primary" disabled={passwordBusy}>
                     {passwordBusy ? <Loader2 size={14} className="spin" /> : <KeyRound size={14} />}
                     {passwordBusy ? "Updating..." : "Update password"}
                   </button>

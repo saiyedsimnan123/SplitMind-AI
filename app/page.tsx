@@ -16,37 +16,18 @@ import type { AuditEvent, AuthUser, GroupRecord, SessionSummary } from "@/lib/ty
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const headerStore = await headers();
-  const deviceLabel = parseDeviceSummary(headerStore.get("user-agent"));
   const authConfigured = isSupabaseAuthConfigured();
-
   if (!authConfigured) {
-    const goaDemo = createInitialGoaGroup();
-    const previewSession: SessionSummary = {
-      authenticated: false,
-      authConfigured: false,
-      sessionId: null,
-      provider: "Local preview mode (Supabase Auth unconfigured)",
-      createdAt: null,
-      deviceLabel,
-      storageMode: "local_preview",
-    };
-
-    return (
-      <SplitMindApp
-        authConfigured={false}
-        initialUser={null}
-        initialSession={previewSession}
-        initialGroups={[goaDemo]}
-        initialAuditEvents={[]}
-      />
-    );
+    redirect("/login");
   }
 
   const session = await getServerSession();
   if (!session) {
     redirect("/login");
   }
+
+  const headerStore = await headers();
+  const deviceLabel = parseDeviceSummary(headerStore.get("user-agent"));
 
   let profile: AuthUser = authUserToFallbackProfile(session.user);
   let groups: GroupRecord[] = [];

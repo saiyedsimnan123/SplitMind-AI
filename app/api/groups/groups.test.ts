@@ -35,6 +35,20 @@ afterEach(() => {
 
 describe("Route protection, group isolation, permissions, and audit immutability", () => {
   it("redirects unauthenticated workspace visitors and blocks unauthenticated API requests via middleware", () => {
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_ANON_KEY;
+
+    const unconfiguredHome = middleware(new NextRequest("http://localhost:3000/"));
+    expect(unconfiguredHome.status).toBe(307);
+    expect(unconfiguredHome.headers.get("location")).toContain("/login");
+
+    const dashboardRes = middleware(new NextRequest("http://localhost:3000/dashboard"));
+    expect(dashboardRes.status).toBe(307);
+    expect(dashboardRes.headers.get("location")).toContain("/login?next=%2Fdashboard");
+
+    const imageRes = middleware(new NextRequest("http://localhost:3000/images/auth-fintech-hero.svg"));
+    expect(imageRes.status).toBe(200);
+
     setTestSupabaseEnv();
 
     const homeRes = middleware(new NextRequest("http://localhost:3000/"));

@@ -107,7 +107,7 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
+          placeholder="you@company.com"
           disabled={busy}
           required
         />
@@ -134,7 +134,7 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
-        <small>At least 8 characters. Never reused or stored in browser storage.</small>
+        <small>Minimum 8 characters. Protected with server-side Supabase Auth.</small>
       </label>
 
       <label className="form-label">
@@ -156,9 +156,9 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
         </p>
       )}
 
-      <button type="submit" className="button button-dark full-button" disabled={busy || !authConfigured}>
+      <button type="submit" className="button button-primary full-button" disabled={busy || !authConfigured}>
         {busy ? <Loader2 size={15} className="spin" /> : <UserPlus size={15} />}
-        {busy ? "Creating account..." : "Create SplitMind account"}
+        {busy ? "Provisioning workspace..." : "Create SplitMind account"}
       </button>
     </form>
   );
