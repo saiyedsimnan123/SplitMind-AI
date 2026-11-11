@@ -101,8 +101,9 @@ export function AuthShell({
                   <strong>Supabase Auth configuration required</strong>
                   <p>
                     Add <code>SUPABASE_URL</code>, <code>SUPABASE_ANON_KEY</code>, and{" "}
-                    <code>SUPABASE_SERVICE_ROLE_KEY</code> in <code>.env.local</code> to sign in or
-                    create an account.
+                    <code>SUPABASE_SERVICE_ROLE_KEY</code> in <code>.env.local</code> or your Vercel
+                    Project Environment Variables to enable sign-in, instant account creation, and
+                    Explore Demo.
                   </p>
                 </div>
               </div>

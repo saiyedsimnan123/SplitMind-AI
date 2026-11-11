@@ -39,6 +39,7 @@ Open [http://localhost:3000](http://localhost:3000).
    - [`supabase/migrations/0002_multi_group_auth_and_audit.sql`](./supabase/migrations/0002_multi_group_auth_and_audit.sql)
    - [`supabase/migrations/0003_multi_method_auth_profiles.sql`](./supabase/migrations/0003_multi_method_auth_profiles.sql)
    - [`supabase/migrations/0004_email_password_optional_unique_phone.sql`](./supabase/migrations/0004_email_password_optional_unique_phone.sql)
+   - [`supabase/migrations/0005_fix_groups_select_rls.sql`](./supabase/migrations/0005_fix_groups_select_rls.sql)
    *(Alternatively, [`supabase/schema.sql`](./supabase/schema.sql) contains the consolidated schema.)*
 3. In **Supabase Authentication → URL Configuration**, add your redirect URLs for password recovery:
    - `http://localhost:3000/api/auth/confirm`
@@ -49,7 +50,7 @@ Open [http://localhost:3000](http://localhost:3000).
 4. Configure **Instant Email & Password Sign-Up / Sign-In** in Supabase Dashboard:
    - Go to **Authentication → Providers → Email**.
    - Keep **Enable Email provider** **ON**.
-   - Turn **Confirm email** **OFF** so newly created accounts receive a Supabase session immediately on `/signup` without waiting for email verification or OTP codes.
+   - Recommended: turn **Confirm email** **OFF** in **Authentication → Providers → Email** (if **Confirm email** remains ON, server-side `SUPABASE_SERVICE_ROLE_KEY` provisions confirmed email/password accounts immediately without confirmation emails).
    - Keep **Reset Password** email template pointing cleanly to your recovery redirect URL (`/reset-password` or `/api/auth/confirm?type=recovery`).
 5. Enable **Anonymous Sign-Ins** for the **Explore Demo →** flow:
    - Go to **Authentication → Providers** (or **Authentication → Settings**) and enable **Allow anonymous sign-ins**.

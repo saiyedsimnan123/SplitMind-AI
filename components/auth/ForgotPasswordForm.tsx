@@ -27,9 +27,9 @@ export function ForgotPasswordForm({ authConfigured }: { authConfigured: boolean
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: trimmedEmail }),
       });
-      const data = (await response.json()) as { error?: string; message?: string };
+      const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
       if (!response.ok) {
-        setError(data.error ?? "Could not send password reset email.");
+        setError(data.error ?? `Could not send password reset email (HTTP ${response.status}).`);
         setBusy(false);
         return;
       }

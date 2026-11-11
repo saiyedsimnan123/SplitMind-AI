@@ -202,20 +202,34 @@ describe("SplitMind AI email-and-password authentication", () => {
     expect(auditPayloads.join("\n")).not.toContain("SuperSecretWrongPassword99");
   });
 
-  it("creates an account immediately without phone or OTP and sets HttpOnly session cookies", async () => {
+  it("creates an account immediately via confirmed admin provisioning when service role key is set (even if Confirm email is ON in Supabase)", async () => {
     mockSupabaseEnv();
     let insertedProfileBody = "";
+    let groupInsertPrefer = "";
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.endsWith("/auth/v1/signup")) {
+      if (url.endsWith("/auth/v1/admin/users")) {
         const sent = JSON.parse(String(init?.body ?? "{}")) as {
           email: string;
-          data: { full_name: string; contact_phone?: string };
+          email_confirm: boolean;
+          user_metadata: { full_name: string; contact_phone?: string };
         };
         expect(sent.email).toBe("diya@example.com");
-        expect(sent.data.full_name).toBe("Diya Nair");
-        expect(sent.data.contact_phone).toBeUndefined();
+        expect(sent.email_confirm).toBe(true);
+        expect(sent.user_metadata.full_name).toBe("Diya Nair");
+        expect(sent.user_metadata.contact_phone).toBeUndefined();
+        return new Response(
+          JSON.stringify({
+            id: "user-diya",
+            email: "diya@example.com",
+            email_confirmed_at: "2026-11-11T00:00:00Z",
+            user_metadata: { full_name: "Diya Nair" },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/auth/v1/token?grant_type=password")) {
         return new Response(
           JSON.stringify({
             access_token: "signup-access-token",
@@ -231,7 +245,7 @@ describe("SplitMind AI email-and-password authentication", () => {
           { status: 200 },
         );
       }
-      if (url.includes("/rest/v1/profiles?id=eq.user-diya")) {
+      if (url.includes("/rest/v1/profiles?id=eq.user-diya") && (!init?.method || init.method === "GET")) {
         return new Response(JSON.stringify([]), { status: 200 });
       }
       if (url.endsWith("/rest/v1/profiles") && init?.method === "POST") {
@@ -251,6 +265,28 @@ describe("SplitMind AI email-and-password authentication", () => {
           ]),
           { status: 201 },
         );
+      }
+      if (url.includes("/rest/v1/groups?select=id&limit=1")) {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (url.endsWith("/rest/v1/groups") && init?.method === "POST") {
+        groupInsertPrefer = String((init.headers as Record<string, string>)?.prefer ?? "");
+        return new Response(null, { status: 201 });
+      }
+      if (
+        (url.endsWith("/rest/v1/group_memberships") ||
+          url.endsWith("/rest/v1/group_budgets") ||
+          url.endsWith("/rest/v1/expenses") ||
+          url.endsWith("/rest/v1/contributions")) &&
+        init?.method === "POST"
+      ) {
+        return new Response(null, { status: 201 });
+      }
+      if (url.includes("/rest/v1/groups?id=eq.") && (!init?.method || init.method === "GET")) {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (url.includes("/rest/v1/profiles?id=eq.user-diya") && init?.method === "PATCH") {
+        return new Response(null, { status: 204 });
       }
       if (url.endsWith("/rest/v1/security_audit_events")) {
         return new Response(null, { status: 201 });
@@ -281,6 +317,7 @@ describe("SplitMind AI email-and-password authentication", () => {
     expect(json.requiresVerification).toBeUndefined();
     expect(json.user.email).toBe("diya@example.com");
     expect(insertedProfileBody).not.toContain('"phone"');
+    expect(groupInsertPrefer).toBe("return=minimal");
 
     const cookies = getSetCookies(res).join("\n");
     expect(cookies).toContain(`${ACCESS_COOKIE}=signup-access-token`);
@@ -288,20 +325,33 @@ describe("SplitMind AI email-and-password authentication", () => {
     expect(cookies).toContain("HttpOnly");
   });
 
-  it("normalizes optional E.164 phone during signup and persists it without verification", async () => {
+  it("normalizes optional E.164 phone during signup and backfills pre-0004 trigger profiles cleanly", async () => {
     mockSupabaseEnv();
-    let insertedProfileBody = "";
+    let patchedPhoneBody = "";
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/rest/v1/profiles?phone=eq.")) {
         return new Response(JSON.stringify([]), { status: 200 });
       }
-      if (url.endsWith("/auth/v1/signup")) {
+      if (url.endsWith("/auth/v1/admin/users")) {
         const sent = JSON.parse(String(init?.body ?? "{}")) as {
-          data: { contact_phone?: string };
+          email_confirm: boolean;
+          user_metadata: { contact_phone?: string };
         };
-        expect(sent.data.contact_phone).toBe("+919876543210");
+        expect(sent.email_confirm).toBe(true);
+        expect(sent.user_metadata.contact_phone).toBe("+919876543210");
+        return new Response(
+          JSON.stringify({
+            id: "user-rohan",
+            email: "rohan@example.com",
+            email_confirmed_at: "2026-11-11T00:00:00Z",
+            user_metadata: { full_name: "Rohan Verma", contact_phone: "+919876543210" },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/auth/v1/token?grant_type=password")) {
         return new Response(
           JSON.stringify({
             access_token: "phone-access-token",
@@ -317,26 +367,27 @@ describe("SplitMind AI email-and-password authentication", () => {
           { status: 200 },
         );
       }
-      if (url.includes("/rest/v1/profiles?id=eq.user-rohan")) {
-        return new Response(JSON.stringify([]), { status: 200 });
-      }
-      if (url.endsWith("/rest/v1/profiles") && init?.method === "POST") {
-        insertedProfileBody = String(init.body ?? "");
+      if (url.includes("/rest/v1/profiles?id=eq.user-rohan") && (!init?.method || init.method === "GET")) {
+        // Simulate pre-0004 DB trigger having created profile with empty phone before contact_phone existed in trigger
         return new Response(
           JSON.stringify([
             {
               id: "user-rohan",
               email: "rohan@example.com",
-              phone: "+919876543210",
+              phone: "",
               full_name: "Rohan Verma",
               initials: "RV",
               avatar_color: "coral",
               default_currency: "INR",
-              workspace_initialized: false,
+              workspace_initialized: true,
             },
           ]),
-          { status: 201 },
+          { status: 200 },
         );
+      }
+      if (url.includes("/rest/v1/profiles?id=eq.user-rohan") && init?.method === "PATCH") {
+        patchedPhoneBody = String(init.body ?? "");
+        return new Response(null, { status: 204 });
       }
       if (url.endsWith("/rest/v1/security_audit_events")) {
         return new Response(null, { status: 201 });
@@ -362,7 +413,7 @@ describe("SplitMind AI email-and-password authentication", () => {
     const json = (await res.json()) as { ok: boolean; user: { phone: string } };
     expect(json.ok).toBe(true);
     expect(json.user.phone).toBe("+919876543210");
-    expect(insertedProfileBody).toContain("+919876543210");
+    expect(patchedPhoneBody).toContain("+919876543210");
   });
 
   it("rejects duplicate optional phone numbers with 409 before creating an auth user", async () => {
@@ -399,12 +450,14 @@ describe("SplitMind AI email-and-password authentication", () => {
     mockSupabaseEnv();
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.endsWith("/auth/v1/signup")) {
+      if (url.endsWith("/auth/v1/admin/users")) {
         return new Response(
           JSON.stringify({
-            user: { id: "user-dup", email: "existing@example.com", identities: [] },
+            code: 422,
+            error_code: "email_exists",
+            msg: "A user with this email address has already been registered",
           }),
-          { status: 200 },
+          { status: 422 },
         );
       }
       throw new Error(`Unexpected fetch URL: ${url}`);
@@ -471,8 +524,9 @@ describe("SplitMind AI email-and-password authentication", () => {
     expect(ensured.profile.id).toBe("user-9");
   });
 
-  it("returns 503 with Dashboard guidance if Supabase still has Confirm email enabled", async () => {
+  it("falls back to public signup when service role key is absent and returns 503 guidance if Confirm email is ON", async () => {
     mockSupabaseEnv();
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith("/auth/v1/signup")) {
@@ -770,8 +824,12 @@ describe("SplitMind AI email-and-password authentication", () => {
     expect(revokedScopes).toEqual(["others", "global"]);
   });
 
-  it("starts isolated Explore Demo sessions with Goa Trip 2026 and blocks demo credential mutations", async () => {
+  it("starts isolated Explore Demo sessions with Goa Trip 2026 (8 friends, ₹40,000), uses return=minimal to avoid groups RLS RETURNING error, and blocks demo credential mutations", async () => {
     mockSupabaseEnv();
+    const insertHeaders: Record<string, string> = {};
+    let seededMemberCount = 0;
+    let seededGroupBudget = 0;
+    let workspaceMarkedInitialized = false;
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -791,7 +849,7 @@ describe("SplitMind AI email-and-password authentication", () => {
           { status: 200 },
         );
       }
-      if (url.includes("/rest/v1/profiles?id=eq.demo-user-1")) {
+      if (url.includes("/rest/v1/profiles?id=eq.demo-user-1") && (!init?.method || init.method === "GET")) {
         return new Response(
           JSON.stringify([
             {
@@ -802,11 +860,41 @@ describe("SplitMind AI email-and-password authentication", () => {
               initials: "DM",
               avatar_color: "teal",
               default_currency: "INR",
-              workspace_initialized: true,
+              workspace_initialized: workspaceMarkedInitialized,
             },
           ]),
           { status: 200 },
         );
+      }
+      if (url.includes("/rest/v1/groups?select=id&limit=1")) {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (url.endsWith("/rest/v1/groups") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body ?? "{}")) as { total_budget: number; is_demo: boolean };
+        seededGroupBudget = body.total_budget;
+        expect(body.is_demo).toBe(true);
+        insertHeaders.groups = String((init.headers as Record<string, string>)?.prefer ?? "");
+        return new Response(null, { status: 201 });
+      }
+      if (url.endsWith("/rest/v1/group_memberships") && init?.method === "POST") {
+        const members = JSON.parse(String(init.body ?? "[]")) as unknown[];
+        seededMemberCount = members.length;
+        insertHeaders.members = String((init.headers as Record<string, string>)?.prefer ?? "");
+        return new Response(null, { status: 201 });
+      }
+      if (url.endsWith("/rest/v1/group_budgets") && init?.method === "POST") {
+        insertHeaders.budgets = String((init.headers as Record<string, string>)?.prefer ?? "");
+        return new Response(null, { status: 201 });
+      }
+      if ((url.endsWith("/rest/v1/expenses") || url.endsWith("/rest/v1/contributions")) && init?.method === "POST") {
+        return new Response(null, { status: 201 });
+      }
+      if (url.includes("/rest/v1/groups?id=eq.") && (!init?.method || init.method === "GET")) {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (url.includes("/rest/v1/profiles?id=eq.demo-user-1") && init?.method === "PATCH") {
+        workspaceMarkedInitialized = true;
+        return new Response(null, { status: 204 });
       }
       if (url.endsWith("/auth/v1/user")) {
         return new Response(
@@ -837,6 +925,14 @@ describe("SplitMind AI email-and-password authentication", () => {
     expect(demoJson.ok).toBe(true);
     expect(demoJson.isDemo).toBe(true);
     expect(getSetCookies(demoRes).join("\n")).toContain(`${ACCESS_COOKIE}=demo-access-token`);
+    expect(seededMemberCount).toBe(8);
+    expect(seededGroupBudget).toBe(40000);
+    expect(workspaceMarkedInitialized).toBe(true);
+    expect(insertHeaders).toEqual({
+      groups: "return=minimal",
+      members: "return=minimal",
+      budgets: "return=minimal",
+    });
 
     const patchDemoRes = await profilePatch(
       new Request("https://splitmind.example/api/profile", {

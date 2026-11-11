@@ -7,6 +7,7 @@ import {
   SESSION_CREATED_COOKIE,
   SESSION_ID_COOKIE,
   getSupabaseAnonKey,
+  getSupabaseServiceKey,
   getSupabaseUrl,
   isSupabaseAuthConfigured,
 } from "@/lib/supabase/config";
@@ -292,6 +293,61 @@ export async function signUpWithSupabase(input: {
           }
         : null,
   };
+}
+
+export async function createConfirmedSupabaseUser(input: {
+  email: string;
+  password: string;
+  fullName: string;
+  contactPhone?: string;
+}): Promise<{ user: SupabaseAuthUser | null; duplicateUser: boolean }> {
+  const url = getSupabaseUrl();
+  const serviceKey = getSupabaseServiceKey();
+  if (!url || !serviceKey) {
+    throw new Error("Supabase service role configuration is required for server account provisioning.");
+  }
+
+  const response = await fetch(`${url}/auth/v1/admin/users`, {
+    method: "POST",
+    headers: {
+      apikey: serviceKey,
+      authorization: `Bearer ${serviceKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      email: input.email,
+      password: input.password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: input.fullName,
+        ...(input.contactPhone ? { contact_phone: input.contactPhone } : {}),
+      },
+    }),
+    signal: AbortSignal.timeout(12000),
+  });
+
+  const data = (await response.json().catch(() => ({}))) as Partial<SupabaseAuthUser> & {
+    user?: SupabaseAuthUser;
+    error_code?: string;
+    msg?: string;
+    message?: string;
+    error_description?: string;
+    error?: string;
+  };
+
+  if (!response.ok) {
+    const rawMsg = parseSupabaseError(data, "Could not create your account.");
+    if (
+      data.error_code === "email_exists" ||
+      /already been registered|already registered|already exists|duplicate/i.test(rawMsg)
+    ) {
+      return { user: null, duplicateUser: true };
+    }
+    throw new Error(rawMsg);
+  }
+
+  const createdUser = data.user ?? (typeof data.id === "string" ? (data as SupabaseAuthUser) : null);
+  return { user: createdUser, duplicateUser: false };
 }
 
 export async function signInAnonymouslyForDemo(): Promise<SupabaseSessionTokens> {

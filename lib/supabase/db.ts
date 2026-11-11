@@ -255,11 +255,28 @@ export async function ensureUserProfile(
 
   if (rows?.[0]) {
     const row = rows[0];
+    let savedPhone = normalizeAuthUserPhone(row.phone);
+    if (!savedPhone && fallback.phone) {
+      try {
+        await userRestFetch(
+          accessToken,
+          `profiles?id=eq.${encodeURIComponent(authUser.id)}`,
+          {
+            method: "PATCH",
+            headers: { prefer: "return=minimal" },
+            body: JSON.stringify({ phone: fallback.phone }),
+          },
+        );
+        savedPhone = fallback.phone;
+      } catch {
+        // Never fail sign-in or overwrite another user's unique phone on conflict.
+      }
+    }
     return {
       profile: {
         id: row.id,
         email: row.email || fallback.email,
-        phone: normalizeAuthUserPhone(row.phone) || fallback.phone,
+        phone: savedPhone,
         authProvider: fallback.authProvider,
         fullName: row.full_name,
         initials: isDemo ? "DM" : row.initials,
@@ -387,11 +404,14 @@ export async function persistNewGroupInDb(
   userId: string,
   group: GroupRecord,
 ): Promise<GroupRecord> {
-  const insertedGroups = await userRestFetch<DbGroupRow[]>(accessToken, "groups", {
+  const groupId = group.id || crypto.randomUUID();
+  // Use return=minimal on groups insert so PostgREST does not evaluate SELECT RETURNING policies
+  // before the newly inserted group tuple is visible to security-definer membership helpers.
+  await userRestFetch(accessToken, "groups", {
     method: "POST",
-    headers: { prefer: "return=representation" },
+    headers: { prefer: "return=minimal" },
     body: JSON.stringify({
-      id: group.id,
+      id: groupId,
       owner_id: userId,
       name: group.name,
       plan_type: group.planType,
@@ -405,12 +425,9 @@ export async function persistNewGroupInDb(
     }),
   });
 
-  const savedGroup = insertedGroups?.[0];
-  if (!savedGroup) throw new Error("Could not save the new group.");
-
   const memberPayload = group.members.map((member, index) => ({
-    id: member.id,
-    group_id: savedGroup.id,
+    id: member.id || crypto.randomUUID(),
+    group_id: groupId,
     user_id: index === 0 ? userId : member.userId ?? null,
     display_name: member.name,
     email: member.email ?? null,
@@ -420,14 +437,15 @@ export async function persistNewGroupInDb(
     paid_amount: member.paid,
   }));
 
-  const savedMembers = await userRestFetch<DbMemberRow[]>(accessToken, "group_memberships", {
+  await userRestFetch(accessToken, "group_memberships", {
     method: "POST",
-    headers: { prefer: "return=representation" },
+    headers: { prefer: "return=minimal" },
     body: JSON.stringify(memberPayload),
   });
 
   const budgetPayload = group.categories.map((cat, index) => ({
-    group_id: savedGroup.id,
+    id: crypto.randomUUID(),
+    group_id: groupId,
     category_key: cat.id,
     label: cat.label,
     planned_amount: cat.budget,
@@ -439,31 +457,32 @@ export async function persistNewGroupInDb(
     updated_by: userId,
   }));
 
-  const savedBudgets = await userRestFetch<DbBudgetRow[]>(accessToken, "group_budgets", {
+  await userRestFetch(accessToken, "group_budgets", {
     method: "POST",
-    headers: { prefer: "return=representation" },
+    headers: { prefer: "return=minimal" },
     body: JSON.stringify(budgetPayload),
   });
 
-  if (group.expenses.length > 0) {
-    const memberIdMap = new Map<string, string>();
-    group.members.forEach((m, idx) => {
-      if (savedMembers?.[idx]?.id) memberIdMap.set(m.id, savedMembers[idx].id);
-    });
-    const budgetByLabel = new Map((savedBudgets ?? []).map((b) => [b.label, b.id]));
+  const memberIdMap = new Map<string, string>();
+  group.members.forEach((m, idx) => {
+    if (memberPayload[idx]?.id) memberIdMap.set(m.id, memberPayload[idx].id);
+  });
+  const fallbackMemberId = memberPayload[0]?.id;
+
+  if (group.expenses.length > 0 && fallbackMemberId) {
+    const budgetByLabel = new Map(budgetPayload.map((b) => [b.label, b.id]));
 
     await userRestFetch(accessToken, "expenses", {
       method: "POST",
       headers: { prefer: "return=minimal" },
       body: JSON.stringify(
         group.expenses.map((expense) => ({
-          group_id: savedGroup.id,
-          category_id: budgetByLabel.get(expense.category) ?? savedBudgets?.[0]?.id ?? null,
+          group_id: groupId,
+          category_id: budgetByLabel.get(expense.category) ?? budgetPayload[0]?.id ?? null,
           category_label: expense.category,
           title: expense.title,
           amount: expense.amount,
-          paid_by_member_id:
-            memberIdMap.get(expense.paidByMemberId ?? "") ?? savedMembers[0].id,
+          paid_by_member_id: memberIdMap.get(expense.paidByMemberId ?? "") ?? fallbackMemberId,
           paid_by_name: expense.submittedBy,
           created_by_user_id: userId,
           verified: expense.verified,
@@ -476,18 +495,14 @@ export async function persistNewGroupInDb(
     });
   }
 
-  if (group.contributions.length > 0) {
-    const memberIdMap = new Map<string, string>();
-    group.members.forEach((m, idx) => {
-      if (savedMembers?.[idx]?.id) memberIdMap.set(m.id, savedMembers[idx].id);
-    });
+  if (group.contributions.length > 0 && fallbackMemberId) {
     await userRestFetch(accessToken, "contributions", {
       method: "POST",
       headers: { prefer: "return=minimal" },
       body: JSON.stringify(
         group.contributions.map((c) => ({
-          group_id: savedGroup.id,
-          member_id: memberIdMap.get(c.memberId) ?? savedMembers[0].id,
+          group_id: groupId,
+          member_id: memberIdMap.get(c.memberId) ?? fallbackMemberId,
           recipient_member_id: c.recipientMemberId ? (memberIdMap.get(c.recipientMemberId) ?? null) : null,
           amount: c.amount,
           currency: c.currency,
@@ -499,7 +514,7 @@ export async function persistNewGroupInDb(
     });
   }
 
-  const loaded = await fetchSingleGroupForUser(accessToken, savedGroup.id);
+  const loaded = await fetchSingleGroupForUser(accessToken, groupId);
   return loaded ?? group;
 }
 

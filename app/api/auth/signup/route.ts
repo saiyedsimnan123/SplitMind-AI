@@ -3,6 +3,7 @@ import { maskEmailForAudit, maskPhoneForAudit } from "@/lib/audit";
 import { validateE164Phone } from "@/lib/phone";
 import {
   applySessionCookies,
+  createConfirmedSupabaseUser,
   deriveSafeSessionId,
   parseDeviceSummary,
   signInWithSupabase,
@@ -10,7 +11,12 @@ import {
   type SupabaseSessionTokens,
 } from "@/lib/supabase/auth";
 import { isSupabaseAuthConfigured, isSupabaseDbConfigured } from "@/lib/supabase/config";
-import { adminRestFetch, ensureUserProfile, recordServerAuditEvent } from "@/lib/supabase/db";
+import {
+  adminRestFetch,
+  ensureUserProfile,
+  recordServerAuditEvent,
+  seedInitialGoaWorkspaceIfNeeded,
+} from "@/lib/supabase/db";
 
 export async function POST(request: Request) {
   if (!isSupabaseAuthConfigured()) {
@@ -76,40 +82,63 @@ export async function POST(request: Request) {
   const deviceLabel = parseDeviceSummary(request.headers.get("user-agent"));
 
   try {
-    const result = await signUpWithSupabase({
-      email,
-      password,
-      fullName,
-      contactPhone: validatedPhone,
-    });
+    let createdUserId: string | null = null;
+    let session: SupabaseSessionTokens | null = null;
 
-    if (result.duplicateUser) {
-      return NextResponse.json(
-        { error: "An account with this email already exists. Please sign in or reset your password." },
-        { status: 409 },
-      );
-    }
+    if (isSupabaseDbConfigured()) {
+      const adminResult = await createConfirmedSupabaseUser({
+        email,
+        password,
+        fullName,
+        contactPhone: validatedPhone,
+      });
 
-    let session: SupabaseSessionTokens | null = result.session;
-    if (!session) {
-      try {
-        session = await signInWithSupabase(email, password);
-      } catch (loginErr) {
-        const reason = loginErr instanceof Error ? loginErr.message : "";
-        const needsConfirmation = /confirm/i.test(reason) || !reason;
+      if (adminResult.duplicateUser) {
         return NextResponse.json(
-          {
-            error: needsConfirmation
-              ? "Instant account creation requires turning OFF 'Confirm email' in Supabase Dashboard → Authentication → Providers → Email."
-              : reason,
-          },
-          { status: 503 },
+          { error: "An account with this email already exists. Please sign in or reset your password." },
+          { status: 409 },
         );
+      }
+
+      createdUserId = adminResult.user?.id ?? null;
+      session = await signInWithSupabase(email, password);
+    } else {
+      const result = await signUpWithSupabase({
+        email,
+        password,
+        fullName,
+        contactPhone: validatedPhone,
+      });
+
+      if (result.duplicateUser) {
+        return NextResponse.json(
+          { error: "An account with this email already exists. Please sign in or reset your password." },
+          { status: 409 },
+        );
+      }
+
+      createdUserId = result.user?.id ?? null;
+      session = result.session;
+      if (!session) {
+        try {
+          session = await signInWithSupabase(email, password);
+        } catch (loginErr) {
+          const reason = loginErr instanceof Error ? loginErr.message : "";
+          const needsConfirmation = /confirm/i.test(reason) || !reason;
+          return NextResponse.json(
+            {
+              error: needsConfirmation
+                ? "Instant account creation requires turning OFF 'Confirm email' in Supabase Dashboard → Authentication → Providers → Email (or setting SUPABASE_SERVICE_ROLE_KEY on the server)."
+                : reason,
+            },
+            { status: 503 },
+          );
+        }
       }
     }
 
     const activeSession = session;
-    const userId = activeSession.user?.id ?? result.user?.id ?? null;
+    const userId = activeSession.user?.id ?? createdUserId ?? null;
     const sessionId = deriveSafeSessionId(activeSession.access_token);
     const createdAt = new Date().toISOString();
 
@@ -117,8 +146,13 @@ export async function POST(request: Request) {
     try {
       const ensured = await ensureUserProfile(activeSession.access_token, activeSession.user);
       profile = ensured.profile;
+      await seedInitialGoaWorkspaceIfNeeded(
+        activeSession.access_token,
+        ensured.profile,
+        ensured.workspaceInitialized,
+      );
     } catch {
-      // Profile creation is also provisioned via DB trigger.
+      // Profile creation is also provisioned via DB trigger and seeded on dashboard load.
     }
 
     await recordServerAuditEvent({

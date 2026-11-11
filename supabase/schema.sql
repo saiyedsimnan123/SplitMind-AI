@@ -423,7 +423,10 @@ with check (id = auth.uid());
 drop policy if exists groups_select_member on public.groups;
 create policy groups_select_member on public.groups
 for select to authenticated
-using (public.is_group_member(id));
+using (
+  owner_id = auth.uid()
+  or public.is_group_member(id)
+);
 
 drop policy if exists groups_insert_owner on public.groups;
 create policy groups_insert_owner on public.groups

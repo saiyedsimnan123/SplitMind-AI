@@ -1,13 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, Lock, Mail, User, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { PhoneInputField } from "@/components/auth/PhoneInputField";
 import { DEFAULT_COUNTRY_DIAL_CODE, validateAndFormatPhone } from "@/lib/phone";
 
 export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
-  const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY_DIAL_CODE);
@@ -67,15 +65,14 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
           ...(normalizedPhone ? { phone: normalizedPhone } : {}),
         }),
       });
-      const data = (await response.json()) as { error?: string };
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
-        setError(data.error ?? "Could not create your account.");
+        setError(data.error ?? `Could not create your account (HTTP ${response.status}).`);
         setBusy(false);
         return;
       }
 
-      router.push("/");
-      router.refresh();
+      window.location.assign("/");
     } catch {
       setError("Network error while creating account. Please try again.");
       setBusy(false);

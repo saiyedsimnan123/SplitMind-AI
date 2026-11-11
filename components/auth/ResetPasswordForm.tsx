@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Lock } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -18,7 +17,6 @@ export function ResetPasswordForm({
   type?: string;
   initialError?: string;
 }) {
-  const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -88,16 +86,15 @@ export function ResetPasswordForm({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ password, tokenHash, type }),
       });
-      const data = (await response.json()) as { error?: string };
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
-        setError(data.error ?? "Could not reset password.");
+        setError(data.error ?? `Could not reset password (HTTP ${response.status}).`);
         setBusy(false);
         return;
       }
       setSuccess(true);
       setTimeout(() => {
-        router.push("/login?reset=1");
-        router.refresh();
+        window.location.assign("/login?reset=1");
       }, 1200);
     } catch {
       setError("Network error while resetting password. Please try again.");

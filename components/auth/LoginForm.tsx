@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowRight, Compass, Eye, EyeOff, Loader2, Lock, LogIn, Mail } from "lucide-react";
 import { useState } from "react";
 
@@ -16,7 +15,6 @@ export function LoginForm({
   initialError?: string;
   initialNotice?: string;
 }) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -50,14 +48,13 @@ export function LoginForm({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: trimmedEmail, password, rememberMe: true }),
       });
-      const data = (await response.json()) as { error?: string };
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
-        setError(data.error ?? "Invalid email or password.");
+        setError(data.error ?? `Sign-in failed (HTTP ${response.status}).`);
         setBusy(false);
         return;
       }
-      router.push(nextPath || "/");
-      router.refresh();
+      window.location.assign(nextPath || "/");
     } catch {
       setError("Network error while signing in. Please try again.");
       setBusy(false);
@@ -65,20 +62,23 @@ export function LoginForm({
   };
 
   const launchDemo = async () => {
-    if (busy || demoBusy || !authConfigured) return;
+    if (busy || demoBusy) return;
+    if (!authConfigured) {
+      setDemoError("Supabase Auth credentials are not configured in this environment.");
+      return;
+    }
     setDemoError("");
     setError("");
     setDemoBusy(true);
     try {
       const response = await fetch("/api/auth/demo", { method: "POST" });
-      const data = (await response.json()) as { error?: string };
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
-        setDemoError(data.error ?? "Could not launch the isolated demo session.");
+        setDemoError(data.error ?? `Could not launch demo session (HTTP ${response.status}).`);
         setDemoBusy(false);
         return;
       }
-      router.push("/");
-      router.refresh();
+      window.location.assign("/");
     } catch {
       setDemoError("Network error while starting demo session. Please try again.");
       setDemoBusy(false);
