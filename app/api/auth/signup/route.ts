@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { maskEmailForAudit } from "@/lib/audit";
+import { validateE164Phone } from "@/lib/phone";
 import {
   applySessionCookies,
   deriveSafeSessionId,
@@ -21,9 +22,9 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { fullName?: unknown; email?: unknown; password?: unknown };
+  let body: { fullName?: unknown; email?: unknown; password?: unknown; phone?: unknown };
   try {
-    body = (await request.json()) as { fullName?: unknown; email?: unknown; password?: unknown };
+    body = (await request.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
   }
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
   const fullName = typeof body.fullName === "string" ? body.fullName.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
+  const rawPhone = typeof body.phone === "string" ? body.phone.trim() : "";
 
   if (!fullName || fullName.length > 80) {
     return NextResponse.json({ error: "Enter your full name (under 80 characters)." }, { status: 400 });
@@ -42,6 +44,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Choose a password with at least 8 characters." }, { status: 400 });
   }
 
+  let validatedPhone: string | undefined;
+  if (rawPhone) {
+    const check = validateE164Phone(rawPhone);
+    if (!check.ok) {
+      return NextResponse.json({ error: check.error }, { status: 400 });
+    }
+    validatedPhone = check.e164;
+  }
+
   const deviceLabel = parseDeviceSummary(request.headers.get("user-agent"));
   const clientIp = getClientKey(request);
 
@@ -50,6 +61,7 @@ export async function POST(request: Request) {
       email,
       password,
       fullName,
+      contactPhone: validatedPhone,
     });
 
     if (result.duplicateUser) {

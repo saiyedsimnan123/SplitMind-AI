@@ -479,7 +479,7 @@ export function LoginForm({
                 disabled={busy || demoBusy || !authConfigured}
               >
                 {busy ? <Loader2 size={15} className="spin" /> : <LogIn size={15} />}
-                {busy ? "Verifying session..." : "Sign in with Email"}
+                {busy ? "Verifying session..." : "Sign In"}
               </button>
             </form>
           ) : (

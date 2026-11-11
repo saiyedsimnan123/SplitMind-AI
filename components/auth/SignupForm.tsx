@@ -68,6 +68,17 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
       setError("Enter a valid email address.");
       return;
     }
+
+    let formattedContactPhone: string | undefined;
+    if (localNumber.trim()) {
+      const phoneCheck = validateAndFormatPhone(countryCode, localNumber);
+      if (!phoneCheck.ok) {
+        setError(phoneCheck.error);
+        return;
+      }
+      formattedContactPhone = phoneCheck.e164;
+    }
+
     if (password.length < 8) {
       setError("Use at least 8 characters for your password.");
       return;
@@ -82,7 +93,12 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ fullName: trimmedName, email: trimmedEmail, password }),
+        body: JSON.stringify({
+          fullName: trimmedName,
+          email: trimmedEmail,
+          password,
+          ...(formattedContactPhone ? { phone: formattedContactPhone } : {}),
+        }),
       });
       const data = (await response.json()) as {
         error?: string;
@@ -285,21 +301,23 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
               type="button"
               role="tab"
               aria-selected={channel === "email"}
+              aria-label="Sign up with Email"
               className={`auth-channel-btn ${channel === "email" ? "active" : ""}`}
               onClick={() => switchChannel("email")}
               disabled={busy}
             >
-              <Mail size={14} /> Sign up with Email
+              <Mail size={14} /> Email
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={channel === "phone"}
+              aria-label="Sign up with Phone"
               className={`auth-channel-btn ${channel === "phone" ? "active" : ""}`}
               onClick={() => switchChannel("phone")}
               disabled={busy}
             >
-              <Phone size={14} /> Sign up with Phone
+              <Phone size={14} /> Phone (+91)
             </button>
           </div>
         </>
@@ -376,6 +394,17 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
             />
           </label>
 
+          <PhoneInputField
+            countryCode={countryCode}
+            localNumber={localNumber}
+            disabled={busy}
+            required={false}
+            label="Phone number (optional)"
+            hint="Default India (+91). Leave blank or add your mobile number for your profile."
+            onChangeCountryCode={setCountryCode}
+            onChangeLocalNumber={setLocalNumber}
+          />
+
           <label className="form-label">
             Password
             <div className="password-field">
@@ -420,7 +449,7 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
 
           <button type="submit" className="button button-primary full-button" disabled={busy || !authConfigured}>
             {busy ? <Loader2 size={15} className="spin" /> : <UserPlus size={15} />}
-            {busy ? "Sending verification code..." : "Create account & send Email OTP"}
+            {busy ? "Creating account..." : "Create Account"}
           </button>
         </form>
       ) : (
@@ -453,7 +482,7 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
 
           <button type="submit" className="button button-primary full-button" disabled={busy || !authConfigured}>
             {busy ? <Loader2 size={15} className="spin" /> : <MessageSquareCode size={15} />}
-            {busy ? "Sending SMS OTP..." : "Create account & send SMS OTP"}
+            {busy ? "Sending SMS OTP..." : "Create Account with SMS OTP"}
           </button>
         </form>
       )}

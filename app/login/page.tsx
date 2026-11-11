@@ -29,9 +29,9 @@ export default async function LoginPage({
   return (
     <AuthShell
       activeRoute="login"
-      kicker="WELCOME BACK"
-      title="Sign in to SplitMind AI"
-      subtitle="Access your isolated group budgets, expense proof ledgers, and AI financial agent."
+      kicker="ONE GROUP. ONE SMART MONEY MIND."
+      title="Welcome back"
+      subtitle="Sign in with Google, Email, or Phone OTP (+91) to manage group budgets, receipts, and smart settlements."
       authConfigured={authConfigured}
       footer={
         <span>

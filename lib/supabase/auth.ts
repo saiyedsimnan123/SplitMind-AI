@@ -242,6 +242,7 @@ export async function signUpWithSupabase(input: {
   email: string;
   password: string;
   fullName: string;
+  contactPhone?: string;
   redirectTo?: string;
 }) {
   if (!isSupabaseAuthConfigured()) {
@@ -255,7 +256,10 @@ export async function signUpWithSupabase(input: {
     body: JSON.stringify({
       email: input.email,
       password: input.password,
-      data: { full_name: input.fullName },
+      data: {
+        full_name: input.fullName,
+        ...(input.contactPhone ? { contact_phone: input.contactPhone } : {}),
+      },
     }),
     signal: AbortSignal.timeout(12000),
   });
