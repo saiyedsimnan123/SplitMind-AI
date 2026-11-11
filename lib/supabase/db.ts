@@ -1,7 +1,7 @@
 import { buildAuditEvent } from "@/lib/audit";
 import { createInitialGoaGroup } from "@/lib/demo-data";
 import { deriveInitials } from "@/lib/groups";
-import type { SupabaseAuthUser } from "@/lib/supabase/auth";
+import { isDemoAuthUser, type SupabaseAuthUser } from "@/lib/supabase/auth";
 import {
   getSupabaseAnonKey,
   getSupabaseServiceKey,
@@ -26,6 +26,7 @@ import type {
 type DbProfileRow = {
   id: string;
   email: string;
+  phone?: string | null;
   full_name: string;
   initials: string;
   avatar_color: string;
@@ -204,10 +205,22 @@ export async function adminRestFetch<T>(path: string, init: RequestInit = {}): P
   return (text ? JSON.parse(text) : null) as T;
 }
 
+function normalizeAuthUserPhone(rawPhone?: string | null): string {
+  const cleaned = (rawPhone ?? "").trim().replace(/\s+/g, "");
+  if (!cleaned) return "";
+  return cleaned.startsWith("+") ? cleaned : `+${cleaned}`;
+}
+
 export function authUserToFallbackProfile(user: SupabaseAuthUser): AuthUser {
+  const isDemo = isDemoAuthUser(user);
+  const phone = normalizeAuthUserPhone(user.phone);
+  const authProvider = user.app_metadata?.provider || (phone ? "phone" : "email");
   const fullName =
     user.user_metadata?.full_name?.trim() ||
-    user.email?.split("@")[0] ||
+    user.user_metadata?.name?.trim() ||
+    (isDemo
+      ? "Demo Explorer"
+      : user.email?.split("@")[0] || (phone ? `Member ••••${phone.slice(-4)}` : "")) ||
     "SplitMind Member";
   const defaultCurrencyRaw = user.user_metadata?.default_currency;
   const defaultCurrency: CurrencyCode =
@@ -217,11 +230,14 @@ export function authUserToFallbackProfile(user: SupabaseAuthUser): AuthUser {
 
   return {
     id: user.id,
-    email: user.email,
+    email: user.email ?? "",
+    phone,
+    authProvider,
     fullName,
-    initials: deriveInitials(fullName),
+    initials: isDemo ? "DM" : deriveInitials(fullName),
     avatarColor: user.user_metadata?.avatar_color || "coral",
     defaultCurrency,
+    isDemo,
   };
 }
 
@@ -229,6 +245,9 @@ export async function ensureUserProfile(
   accessToken: string,
   authUser: SupabaseAuthUser,
 ): Promise<{ profile: AuthUser; workspaceInitialized: boolean }> {
+  const isDemo = isDemoAuthUser(authUser);
+  const fallback = authUserToFallbackProfile(authUser);
+  // Look up strictly by verified authUser.id; never match or merge by unverified email/phone.
   const rows = await userRestFetch<DbProfileRow[]>(
     accessToken,
     `profiles?id=eq.${encodeURIComponent(authUser.id)}&select=*`,
@@ -239,17 +258,19 @@ export async function ensureUserProfile(
     return {
       profile: {
         id: row.id,
-        email: row.email,
+        email: row.email || fallback.email,
+        phone: normalizeAuthUserPhone(row.phone) || fallback.phone,
+        authProvider: fallback.authProvider,
         fullName: row.full_name,
-        initials: row.initials,
+        initials: isDemo ? "DM" : row.initials,
         avatarColor: row.avatar_color,
         defaultCurrency: row.default_currency,
+        isDemo,
       },
       workspaceInitialized: row.workspace_initialized,
     };
   }
 
-  const fallback = authUserToFallbackProfile(authUser);
   const inserted = await userRestFetch<DbProfileRow[]>(accessToken, "profiles", {
     method: "POST",
     headers: { prefer: "return=representation,resolution=merge-duplicates" },
@@ -268,11 +289,14 @@ export async function ensureUserProfile(
     profile: row
       ? {
           id: row.id,
-          email: row.email,
+          email: row.email || fallback.email,
+          phone: normalizeAuthUserPhone(row.phone) || fallback.phone,
+          authProvider: fallback.authProvider,
           fullName: row.full_name,
-          initials: row.initials,
+          initials: isDemo ? "DM" : row.initials,
           avatarColor: row.avatar_color,
           defaultCurrency: row.default_currency,
+          isDemo,
         }
       : fallback,
     workspaceInitialized: row?.workspace_initialized ?? false,

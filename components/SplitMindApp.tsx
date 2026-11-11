@@ -4,6 +4,7 @@ import {
   ArchiveRestore,
   CheckCircle2,
   FolderPlus,
+  LogOut,
   Plus,
   ShieldAlert,
   ShieldCheck,
@@ -73,16 +74,43 @@ import { SettlementsView } from "@/components/views/SettlementsView";
 const WORKSPACE_STORAGE_KEY = "splitmind-workspace-v2";
 const LEGACY_STORAGE_KEY = "splitmind-demo";
 
-const SCREEN_COPY: Record<Screen, { subtitle: string }> = {
-  Overview: { subtitle: "A little less back-and-forth. A lot more clarity on where this group stands." },
-  Groups: { subtitle: "Switch between shared plans, manage rosters, organizers, and group details." },
-  "Budget planner": { subtitle: "Update group budgets, inspect remaining balance, and run MoneyTwin scenarios." },
-  Expenses: { subtitle: "Every submission stays unverified until a person opens the receipt and confirms." },
-  Payments: { subtitle: "USD Sandbox checkout with client idempotency and server-side capture verification." },
-  Settlements: { subtitle: "Minimum-transfer settlement suggestions derived from submitted spend." },
-  "AI Financial Agent": { subtitle: "Conversational explanations backed by deterministic SplitMind calculations." },
-  Activity: { subtitle: "Group paper trail alongside your complete expense ledger." },
-  Settings: { subtitle: "Manage profile preferences, session security, and audit activity." },
+const SCREEN_COPY: Record<Screen, { title: string; subtitle: string }> = {
+  Overview: {
+    title: "Financial overview",
+    subtitle: "Real-time shared budget health, Proof Engine status, and SmartSplit member positions.",
+  },
+  Groups: {
+    title: "Groups & Members",
+    subtitle: "Create isolated workspaces, switch active plans, manage rosters, and track contributions.",
+  },
+  "Budget planner": {
+    title: "Budget & MoneyTwin",
+    subtitle: "Adjust category allocations, update group caps, and stress-test scenarios non-destructively.",
+  },
+  Expenses: {
+    title: "Expenses & Proof Engine",
+    subtitle: "Every submission stays unverified until a member reviews the attached receipt.",
+  },
+  Payments: {
+    title: "IntentPay Checkout",
+    subtitle: "Idempotent USD Sandbox checkout with server-side PayPal capture verification.",
+  },
+  Settlements: {
+    title: "Settlement Intelligence",
+    subtitle: "Minimum-transfer settlement suggestions and recorded reimbursement history.",
+  },
+  "AI Financial Agent": {
+    title: "AI Group Financial Agent",
+    subtitle: "Conversational insights grounded in deterministic SplitMind financial math.",
+  },
+  Activity: {
+    title: "Group Activity",
+    subtitle: "Group paper trail alongside your complete expense ledger.",
+  },
+  Settings: {
+    title: "Account Settings",
+    subtitle: "Manage profile preferences, credentials, active sessions, and security audit trails.",
+  },
 };
 
 type PendingConfirm =
@@ -126,6 +154,7 @@ export function SplitMindApp({
   const [screen, setScreen] = useState<Screen>("Overview");
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("account");
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(initialUser);
+  const isDemo = Boolean(initialSession.isDemo || currentUser?.isDemo);
   const [groups, setGroups] = useState<GroupRecord[]>(
     initialGroups.length ? initialGroups : [createInitialGoaGroup()],
   );
@@ -1099,7 +1128,37 @@ export function SplitMindApp({
     }
   };
 
+  const handleSimulateDemoPayment = () => {
+    const valid =
+      /^(?:0|[1-9]\d{0,3})(?:\.\d{1,2})?$/.test(paymentAmount) &&
+      Number(paymentAmount) >= 0.01 &&
+      Number(paymentAmount) <= 9999.99;
+    if (!valid) {
+      setPaymentFeedback({
+        tone: "warning",
+        headline: "Enter a valid demo amount",
+        detail: "Use an amount between $0.01 and $9,999.99 USD to preview the checkout receipt.",
+      });
+      return;
+    }
+
+    const simulatedId = `DEMO-${activeGroup.id.slice(0, 6).toUpperCase()}-${paymentAmount.replace(".", "")}`;
+    setPaymentFeedback({
+      tone: "success",
+      headline: "Demo payment simulated (no real charge)",
+      detail: `Simulated checkout preview for ${activeGroup.name}. Real PayPal Sandbox calls are disabled in DEMO sessions.`,
+      amount: paymentAmount,
+      currency: "USD",
+      captureId: simulatedId,
+    });
+    showToast("success", `Simulated demo payment of $${paymentAmount} USD (no real PayPal transaction).`);
+  };
+
   const createOrder = async () => {
+    if (isDemo) {
+      handleSimulateDemoPayment();
+      return;
+    }
     if (paymentBusy) return;
     setPaymentBusy(true);
     setPaymentFeedback({
@@ -1279,6 +1338,7 @@ export function SplitMindApp({
         }}
         currentUser={currentUser}
         authConfigured={authConfigured}
+        isDemo={isDemo}
         unverifiedCount={summary.unverifiedCount}
         auditCount={auditEvents.filter((e) => e.groupId === activeGroup.id).length}
         mobileOpen={mobileNav}
@@ -1292,6 +1352,7 @@ export function SplitMindApp({
           groupCurrency={activeGroup.currency}
           unverifiedCount={summary.unverifiedCount}
           authConfigured={authConfigured}
+          isDemo={isDemo}
           currentUser={currentUser}
           onOpenMobileNav={() => setMobileNav(true)}
           onOpenExpenses={() => pickScreen("Expenses")}
@@ -1311,6 +1372,28 @@ export function SplitMindApp({
                 <code>SUPABASE_URL</code>, <code>SUPABASE_ANON_KEY</code>, and{" "}
                 <code>SUPABASE_SERVICE_ROLE_KEY</code> to enable server authentication and RLS persistence.
               </span>
+            </div>
+          )}
+
+          {isDemo && (
+            <div className="demo-mode-banner" role="status">
+              <div className="demo-mode-copy">
+                <span className="demo-pill-tag">DEMO</span>
+                <span>
+                  <strong>Explore Demo Mode</strong> — You are exploring an isolated sample workspace seeded
+                  with the Goa Trip 2026 ledger (8 friends, 3 days). Changes stay private to your demo
+                  session and never trigger real payments.
+                </span>
+              </div>
+              <div className="demo-mode-actions">
+                <button
+                  type="button"
+                  className="button button-outline button-sm"
+                  onClick={() => void handleLogout("local")}
+                >
+                  <LogOut size={13} /> Exit Demo / Return to Login
+                </button>
+              </div>
             </div>
           )}
 
@@ -1360,12 +1443,12 @@ export function SplitMindApp({
               <h1>
                 {screen === "Overview" ? (
                   <>
-                    Money stuff, <span>sorted.</span>
+                    {activeGroup.name} <span>Command</span>
                   </>
                 ) : screen === "Settings" && settingsTab === "security" ? (
                   "Security & Activity"
                 ) : (
-                  screen
+                  SCREEN_COPY[screen].title
                 )}
               </h1>
               <p className="page-subtitle">
@@ -1394,8 +1477,8 @@ export function SplitMindApp({
               >
                 <Plus size={15} /> Add expense
               </button>
-              <button type="button" className="button button-dark" onClick={() => pickScreen("Budget planner")}>
-                <Sparkles size={15} /> Plan together
+              <button type="button" className="button button-primary" onClick={() => pickScreen("Budget planner")}>
+                <Sparkles size={15} /> MoneyTwin
               </button>
             </div>
           </div>
@@ -1532,11 +1615,13 @@ export function SplitMindApp({
             <PaymentsView
               groupName={activeGroup.name}
               groupCurrency={activeGroup.currency}
+              isDemo={isDemo}
               paymentAmount={paymentAmount}
               paymentBusy={paymentBusy}
               paymentFeedback={paymentFeedback}
               onChangeAmount={setPaymentAmount}
               onCreateOrder={createOrder}
+              onSimulateDemoPayment={handleSimulateDemoPayment}
             />
           )}
 

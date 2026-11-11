@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -96,7 +97,16 @@ export function SecurityActivityView({
             : "Supabase Auth environment variables are not set. Running in unauthenticated local preview mode without fake sign-in simulation."}
         </p>
 
-        <div className="session-device-card">
+        <div className="security-hero-row">
+          <Image
+            src="/images/security-vault.svg"
+            alt="SplitMind session security and Row Level Security audit protection"
+            width={160}
+            height={102}
+            unoptimized
+            className="security-hero-thumb"
+          />
+          <div className="session-device-card" style={{ flex: 1 }}>
           <div className="session-device-meta">
             <span className="activity-icon activity-verified">
               <Laptop size={17} />
@@ -132,6 +142,7 @@ export function SecurityActivityView({
               </button>
             </div>
           )}
+        </div>
         </div>
 
         <div className="safety-note">

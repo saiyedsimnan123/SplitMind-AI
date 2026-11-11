@@ -20,15 +20,16 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { email?: unknown; password?: unknown };
+  let body: { email?: unknown; password?: unknown; rememberMe?: unknown };
   try {
-    body = (await request.json()) as { email?: unknown; password?: unknown };
+    body = (await request.json()) as { email?: unknown; password?: unknown; rememberMe?: unknown };
   } catch {
     return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
   }
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
+  const rememberMe = body.rememberMe !== false;
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
@@ -97,6 +98,7 @@ export async function POST(request: Request) {
         sessionId,
         sessionCreatedAt: createdAt,
         expiresIn: tokens.expires_in,
+        rememberMe,
       },
       request,
     );

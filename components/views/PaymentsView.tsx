@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   AlertCircle,
   ArrowUpRight,
@@ -10,24 +11,29 @@ import {
   LockKeyhole,
   ShieldCheck,
 } from "lucide-react";
+import { EngineBadge } from "@/components/ui";
 import type { CurrencyCode, PaymentFeedback } from "@/lib/types";
 
 export function PaymentsView({
   groupName,
   groupCurrency,
+  isDemo,
   paymentAmount,
   paymentBusy,
   paymentFeedback,
   onChangeAmount,
   onCreateOrder,
+  onSimulateDemoPayment,
 }: {
   groupName: string;
   groupCurrency: CurrencyCode;
+  isDemo?: boolean;
   paymentAmount: string;
   paymentBusy: boolean;
   paymentFeedback: PaymentFeedback;
   onChangeAmount: (value: string) => void;
   onCreateOrder: () => void;
+  onSimulateDemoPayment?: () => void;
 }) {
   const isValidFormat =
     /^(?:0|[1-9]\d{0,3})(?:\.\d{1,2})?$/.test(paymentAmount) &&
@@ -39,18 +45,23 @@ export function PaymentsView({
       <section className="panel payment-panel">
         <div className="panel-heading">
           <div>
-            <div className="section-kicker">{groupName.toUpperCase()} · PAYPAL SANDBOX</div>
+            <div className="panel-kicker-row">
+              <span className="section-kicker">
+                {groupName.toUpperCase()} · {isDemo ? "DEMO PAYMENT PREVIEW" : "PAYPAL SANDBOX"}
+              </span>
+              <EngineBadge engine="intentpay" />
+            </div>
             <h2>Payments, with a paper trail.</h2>
           </div>
-          <span className="save-badge">
-            <ShieldCheck size={14} /> USD Sandbox only
+          <span className={isDemo ? "demo-pill-tag" : "save-badge"}>
+            <ShieldCheck size={14} /> {isDemo ? "Demo Simulation" : "USD Sandbox only"}
           </span>
         </div>
 
         <p className="muted-copy">
-          Create a PayPal Sandbox order linked to {groupName}. PayPal holds and transfers funds directly
-          between test accounts—SplitMind is not a wallet or custodian, and USD Sandbox amounts are separate
-          from the {groupCurrency} group ledger.
+          {isDemo
+            ? `Preview how IntentPay creates payment records linked to ${groupName}. In Demo Explorer mode, real and Sandbox PayPal transactions are blocked—payments execute as local simulated previews.`
+            : `Create a PayPal Sandbox order linked to ${groupName}. PayPal holds and transfers funds directly between test accounts—SplitMind is not a wallet or custodian, and USD Sandbox amounts are separate from the ${groupCurrency} group ledger.`}
         </p>
 
         <div className="preset-chips" aria-label="Quick Sandbox USD amounts">
@@ -85,12 +96,16 @@ export function PaymentsView({
 
         <button
           type="button"
-          className="button button-dark"
-          onClick={onCreateOrder}
+          className="button button-primary"
+          onClick={isDemo && onSimulateDemoPayment ? onSimulateDemoPayment : onCreateOrder}
           disabled={paymentBusy || !paymentAmount.trim()}
         >
           {paymentBusy ? <Loader2 size={15} className="spin" /> : <CreditCard size={15} />}
-          {paymentBusy ? "Working with PayPal..." : "Continue to PayPal Sandbox"}
+          {isDemo
+            ? "Simulate Demo Payment (No Real Charge)"
+            : paymentBusy
+              ? "Working with PayPal..."
+              : "Continue to PayPal Sandbox"}
           {!paymentBusy && <ArrowUpRight size={14} />}
         </button>
 
@@ -128,8 +143,18 @@ export function PaymentsView({
       </section>
 
       <aside className="panel">
-        <div className="section-kicker">BEFORE YOU START</div>
+        <div className="section-kicker">VERIFICATION ARCHITECTURE</div>
         <h2>What happens next?</h2>
+        <div style={{ margin: "14px 0" }}>
+          <Image
+            src="/images/security-vault.svg"
+            alt="Server-side payment capture verification and security shield"
+            width={220}
+            height={140}
+            unoptimized
+            style={{ width: "100%", height: "auto", borderRadius: 10 }}
+          />
+        </div>
 
         <div className="steps-list">
           <div>

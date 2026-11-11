@@ -4,6 +4,7 @@ import { LockKeyhole, RotateCcw, Send } from "lucide-react";
 import { getCurrencySymbol } from "@/lib/finance";
 import type { ChatMessage, CurrencyCode } from "@/lib/types";
 import { AgentMessageList } from "@/components/AgentRail";
+import { EngineBadge } from "@/components/ui";
 
 export function AgentView({
   groupName,
@@ -52,8 +53,11 @@ export function AgentView({
     <section className="panel agent-page">
       <div className="panel-heading">
         <div>
-          <div className="section-kicker">
-            GROUP CONTEXT · {groupName.toUpperCase()} · {memberCount} MEMBER{memberCount === 1 ? "" : "S"}
+          <div className="panel-kicker-row">
+            <span className="section-kicker">
+              GROUP CONTEXT · {groupName.toUpperCase()} · {memberCount} MEMBER{memberCount === 1 ? "" : "S"}
+            </span>
+            <EngineBadge engine="agent" />
           </div>
           <h2>Ask your group&apos;s money mind.</h2>
         </div>
@@ -100,7 +104,7 @@ export function AgentView({
           value={ask}
           onChange={(event) => onChangeAsk(event.target.value)}
         />
-        <button className="button button-dark" type="submit" disabled={!ask.trim() || isThinking}>
+        <button className="button button-primary" type="submit" disabled={!ask.trim() || isThinking}>
           <Send size={14} /> Ask
         </button>
       </form>

@@ -96,6 +96,8 @@ export function SettingsView({
     }
   };
 
+  const isDemoAccount = Boolean(currentUser?.isDemo || session.isDemo);
+
   const submitPassword = async (event: React.FormEvent) => {
     event.preventDefault();
     setPasswordMsg("");
@@ -172,7 +174,7 @@ export function SettingsView({
               </div>
               {authConfigured && currentUser ? (
                 <button type="button" className="button button-outline button-sm" onClick={onLogoutLocal}>
-                  <LogOut size={13} /> Sign out
+                  <LogOut size={13} /> {isDemoAccount ? "Exit Demo" : "Sign out"}
                 </button>
               ) : (
                 <Link href="/login" className="button button-outline button-sm">
@@ -181,14 +183,67 @@ export function SettingsView({
               )}
             </div>
 
-            {authConfigured && currentUser ? (
+            {authConfigured && currentUser && isDemoAccount ? (
+              <div className="stack-layout" style={{ marginTop: 14 }}>
+                <div className="safety-note">
+                  <ShieldCheck size={15} />
+                  <span>
+                    <strong>DEMO Session</strong> — You are signed in as{" "}
+                    <strong>Demo Explorer (DEMO)</strong> with an isolated temporary workspace.
+                    Account credentials and email settings cannot be modified in Demo Mode.
+                  </span>
+                </div>
+                <div className="proposal-actions">
+                  <button type="button" className="button button-outline" onClick={onLogoutLocal}>
+                    <LogOut size={14} /> Exit Demo / Return to Login
+                  </button>
+                  <Link href="/signup" className="button button-primary">
+                    Create full account
+                  </Link>
+                </div>
+              </div>
+            ) : authConfigured && currentUser ? (
               <form onSubmit={submitProfile} style={{ marginTop: 14 }}>
+                {currentUser.email && (
+                  <div className="settings-row">
+                    <div>
+                      <strong>Email address</strong>
+                      <small>
+                        {currentUser.authProvider === "google"
+                          ? "Verified Google OAuth email"
+                          : "Verified Supabase Auth identity"}
+                      </small>
+                    </div>
+                    <input value={currentUser.email} readOnly aria-label="Email address" />
+                  </div>
+                )}
+
+                {currentUser.phone && (
+                  <div className="settings-row">
+                    <div>
+                      <strong>Phone number</strong>
+                      <small>Verified via SMS OTP (Supabase Phone Auth)</small>
+                    </div>
+                    <input value={currentUser.phone} readOnly aria-label="Phone number" />
+                  </div>
+                )}
+
                 <div className="settings-row">
                   <div>
-                    <strong>Email address</strong>
-                    <small>Verified Supabase Auth identity</small>
+                    <strong>Authentication method</strong>
+                    <small>Active identity provider linked to your SplitMind profile</small>
                   </div>
-                  <input value={currentUser.email} readOnly aria-label="Email address" />
+                  <input
+                    value={
+                      currentUser.authProvider === "google"
+                        ? "Google OAuth (PKCE)"
+                        : currentUser.authProvider === "phone" || (!currentUser.email && currentUser.phone)
+                          ? "Phone OTP (SMS)"
+                          : "Email & OTP"
+                    }
+                    readOnly
+                    aria-label="Authentication method"
+                  />
                 </div>
 
                 <div className="settings-row">
@@ -237,7 +292,7 @@ export function SettingsView({
                 )}
 
                 <div className="proposal-actions">
-                  <button type="submit" className="button button-dark" disabled={profileBusy}>
+                  <button type="submit" className="button button-primary" disabled={profileBusy}>
                     {profileBusy ? <Loader2 size={14} className="spin" /> : <Save size={14} />}
                     {profileBusy ? "Saving..." : "Save account settings"}
                   </button>
@@ -256,7 +311,12 @@ export function SettingsView({
             )}
           </section>
 
-          {authConfigured && currentUser && (
+          {authConfigured &&
+            currentUser &&
+            !isDemoAccount &&
+            Boolean(currentUser.email) &&
+            currentUser.authProvider !== "google" &&
+            currentUser.authProvider !== "phone" && (
             <section className="panel settings-panel">
               <div className="section-kicker">CREDENTIALS</div>
               <h2>Change password</h2>
@@ -313,7 +373,7 @@ export function SettingsView({
                 )}
 
                 <div className="proposal-actions">
-                  <button type="submit" className="button button-dark" disabled={passwordBusy}>
+                  <button type="submit" className="button button-primary" disabled={passwordBusy}>
                     {passwordBusy ? <Loader2 size={14} className="spin" /> : <KeyRound size={14} />}
                     {passwordBusy ? "Updating..." : "Update password"}
                   </button>

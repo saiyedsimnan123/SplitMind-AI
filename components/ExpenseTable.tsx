@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Eye, FileCheck2, FileText, Paperclip, Pencil, ReceiptText, ShieldAlert, Trash2 } from "lucide-react";
 import type { CurrencyCode, GroupExpense } from "@/lib/types";
 import { money } from "@/components/ui";
@@ -26,7 +27,13 @@ export function ExpenseTable({
   if (!expenses.length) {
     return (
       <div className="empty-state">
-        <ReceiptText size={22} />
+        <Image
+          src="/images/empty-ledger.svg"
+          alt="Empty expense ledger illustration"
+          width={180}
+          height={112}
+          unoptimized
+        />
         <strong>{emptyTitle}</strong>
         <span>{emptyDetail}</span>
       </div>

@@ -3,6 +3,7 @@ import { deriveInitials } from "@/lib/groups";
 import {
   applySessionCookies,
   getRequestSession,
+  isDemoAuthUser,
   parseDeviceSummary,
   signInWithSupabase,
   updateSupabaseUser,
@@ -46,6 +47,12 @@ export async function PATCH(request: Request) {
   if (!session) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
+  if (isDemoAuthUser(session.user)) {
+    return NextResponse.json(
+      { error: "Demo accounts cannot modify profile or security credentials. Create a full account to save settings." },
+      { status: 403 },
+    );
+  }
 
   let body: {
     fullName?: unknown;
@@ -64,6 +71,12 @@ export async function PATCH(request: Request) {
 
   // Handle password change cleanly by verifying currentPassword first
   if (typeof body.newPassword === "string" && body.newPassword.length > 0) {
+    if (!session.user.email) {
+      return NextResponse.json(
+        { error: "Password credentials are only available for email-authenticated accounts." },
+        { status: 400 },
+      );
+    }
     if (typeof body.currentPassword !== "string" || !body.currentPassword) {
       return NextResponse.json({ error: "Enter your current password to set a new one." }, { status: 400 });
     }
@@ -71,7 +84,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "New password must be at least 8 characters." }, { status: 400 });
     }
     try {
-      await signInWithSupabase(session.user.email, body.currentPassword);
+      await signInWithSupabase(session.user.email ?? "", body.currentPassword);
     } catch {
       await recordServerAuditEvent({
         category: "security",
@@ -79,7 +92,7 @@ export async function PATCH(request: Request) {
         eventName: "Failed password change verification",
         status: "warning",
         actorUserId: session.user.id,
-        actorLabel: session.user.user_metadata?.full_name || session.user.email,
+        actorLabel: session.user.user_metadata?.full_name || session.user.email || "Member",
         description: `Rejected password change because current password verification failed (${deviceLabel}).`,
       });
       return NextResponse.json({ error: "Current password is incorrect." }, { status: 403 });
@@ -92,7 +105,7 @@ export async function PATCH(request: Request) {
       eventName: "Account password updated",
       status: "success",
       actorUserId: session.user.id,
-      actorLabel: session.user.user_metadata?.full_name || session.user.email,
+      actorLabel: session.user.user_metadata?.full_name || session.user.email || "Member",
       description: `Changed account password from Account Settings (${deviceLabel}).`,
     });
   }
@@ -143,7 +156,7 @@ export async function PATCH(request: Request) {
       eventName: "Profile settings updated",
       status: "success",
       actorUserId: session.user.id,
-      actorLabel: updateFields.full_name || session.user.user_metadata?.full_name || session.user.email,
+      actorLabel: updateFields.full_name || session.user.user_metadata?.full_name || session.user.email || "Member",
       description: `Updated account profile settings (${Object.keys(updateFields).join(", ")}).`,
     });
   }

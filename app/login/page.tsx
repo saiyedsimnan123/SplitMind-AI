@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { LoginForm } from "@/components/auth/LoginForm";
-import { getServerSession, safeRedirectPath } from "@/lib/supabase/auth";
+import { getServerSession, isDemoAuthUser, safeRedirectPath } from "@/lib/supabase/auth";
 import { isSupabaseAuthConfigured } from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export default async function LoginPage({
 
   if (authConfigured) {
     const session = await getServerSession();
-    if (session) {
+    if (session && !isDemoAuthUser(session.user)) {
       redirect("/");
     }
   }
@@ -28,15 +28,16 @@ export default async function LoginPage({
 
   return (
     <AuthShell
-      kicker="SECURE ACCESS"
-      title="Sign in to SplitMind"
-      subtitle="Access your shared groups, expense ledgers, and settlement plans."
+      activeRoute="login"
+      kicker="ONE GROUP. ONE SMART MONEY MIND."
+      title="Welcome back"
+      subtitle="Sign in with Google, Email, or Phone OTP (+91) to manage group budgets, receipts, and smart settlements."
       authConfigured={authConfigured}
       footer={
         <span>
-          New to SplitMind?{" "}
-          <Link href="/signup" className="inline-link">
-            Create an account
+          Forgot your password?{" "}
+          <Link href="/forgot-password" className="inline-link">
+            Recover account access
           </Link>
         </span>
       }

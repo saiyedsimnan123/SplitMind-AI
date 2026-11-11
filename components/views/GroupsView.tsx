@@ -19,7 +19,7 @@ import { useMemo, useState } from "react";
 import { PLAN_TYPE_LABELS } from "@/lib/finance";
 import { getGroupSummary } from "@/lib/groups";
 import type { GroupMember, GroupRecord, MemberBalance, PlanType, Screen } from "@/lib/types";
-import { Avatar, ProgressBar, formatGroupDates, money, planTypeLabel } from "@/components/ui";
+import { Avatar, EngineBadge, ProgressBar, formatGroupDates, money, planTypeLabel } from "@/components/ui";
 
 export function GroupsView({
   groups,
@@ -85,10 +85,13 @@ export function GroupsView({
       <section className="panel full-panel">
         <div className="panel-heading">
           <div>
-            <div className="section-kicker">MULTI-GROUP DIRECTORY</div>
+            <div className="panel-kicker-row">
+              <span className="section-kicker">MULTI-GROUP DIRECTORY</span>
+              <EngineBadge engine="smartsplit" />
+            </div>
             <h2>All shared plans ({groups.length})</h2>
           </div>
-          <button type="button" className="button button-dark" onClick={onOpenCreateGroup}>
+          <button type="button" className="button button-primary" onClick={onOpenCreateGroup}>
             <FolderPlus size={15} /> Create new group
           </button>
         </div>
@@ -160,7 +163,7 @@ export function GroupsView({
             <Users size={22} />
             <strong>No groups match this view.</strong>
             <span>Create a new group or clear your search and status filters.</span>
-            <button type="button" className="button button-dark" onClick={onOpenCreateGroup}>
+            <button type="button" className="button button-primary" onClick={onOpenCreateGroup}>
               <FolderPlus size={14} /> Create new group
             </button>
           </div>
@@ -223,7 +226,7 @@ export function GroupsView({
 
                   <ProgressBar
                     value={pct}
-                    color={pct > 95 ? "#c96f4a" : "var(--emerald)"}
+                    color={pct > 95 ? "var(--danger)" : "var(--brand)"}
                     label={`${group.name} budget usage`}
                   />
 
@@ -306,7 +309,7 @@ export function GroupsView({
             >
               <Plus size={14} /> Record contribution
             </button>
-            <button type="button" className="button button-dark" onClick={onOpenAddMember} disabled={isArchived}>
+            <button type="button" className="button button-primary" onClick={onOpenAddMember} disabled={isArchived}>
               <UserPlus size={15} /> Add member
             </button>
           </div>

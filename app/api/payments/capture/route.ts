@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { findPaymentByOrder, paypalRequest, persistPayment } from "@/lib/paypal";
-import { applySessionCookies, getRequestSession } from "@/lib/supabase/auth";
+import { applySessionCookies, getRequestSession, isDemoAuthUser } from "@/lib/supabase/auth";
 import { isSupabaseAuthConfigured } from "@/lib/supabase/config";
 import { recordServerAuditEvent } from "@/lib/supabase/db";
 
@@ -15,9 +15,24 @@ export async function POST(request: Request) {
       if (!session) {
         return NextResponse.json({ error: "Sign in to verify PayPal captures." }, { status: 401 });
       }
+      if (isDemoAuthUser(session.user)) {
+        await recordServerAuditEvent({
+          category: "security",
+          eventType: "security.warning",
+          eventName: "Blocked PayPal capture in Demo Mode",
+          status: "warning",
+          actorUserId: session.user.id,
+          actorLabel: "Demo Explorer (DEMO)",
+          description: "Blocked PayPal capture attempt from an isolated demo session.",
+        });
+        return NextResponse.json(
+          { error: "Real PayPal captures are disabled in Demo Mode." },
+          { status: 403 },
+        );
+      }
       refreshedSession = session;
       userId = session.user.id;
-      userLabel = session.user.user_metadata?.full_name || session.user.email;
+      userLabel = session.user.user_metadata?.full_name || session.user.email || "SplitMind Member";
     }
 
     const body = (await request.json()) as { orderId?: unknown };

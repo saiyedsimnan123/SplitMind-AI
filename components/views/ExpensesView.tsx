@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import type { Category } from "@/lib/finance";
 import type { CurrencyCode, GroupExpense } from "@/lib/types";
 import { ExpenseTable } from "@/components/ExpenseTable";
-import { money } from "@/components/ui";
+import { EngineBadge, money } from "@/components/ui";
 
 type ExpenseFilter = "all" | "unverified" | "verified";
 
@@ -57,10 +57,13 @@ export function ExpensesView({
     <section className="panel full-panel">
       <div className="panel-heading">
         <div>
-          <div className="section-kicker">{groupName.toUpperCase()} · LEDGER</div>
+          <div className="panel-kicker-row">
+            <span className="section-kicker">{groupName.toUpperCase()} · LEDGER</span>
+            <EngineBadge engine="proof" />
+          </div>
           <h2>Expense ledger</h2>
         </div>
-        <button type="button" className="button button-dark" onClick={onOpenExpenseModal} disabled={isArchived}>
+        <button type="button" className="button button-primary" onClick={onOpenExpenseModal} disabled={isArchived}>
           <Plus size={15} /> Add expense
         </button>
       </div>

@@ -1,7 +1,6 @@
 "use client";
 
-import { Bell, Bot, ChevronRight, LockKeyhole, LogIn, LogOut, Menu } from "lucide-react";
-import Link from "next/link";
+import { Bell, Bot, ChevronRight, LockKeyhole, LogOut, Menu, ShieldCheck } from "lucide-react";
 import type { AuthUser, CurrencyCode, Screen } from "@/lib/types";
 
 export function Topbar({
@@ -10,6 +9,7 @@ export function Topbar({
   groupCurrency,
   unverifiedCount,
   authConfigured,
+  isDemo,
   currentUser,
   onOpenMobileNav,
   onOpenExpenses,
@@ -23,6 +23,7 @@ export function Topbar({
   groupCurrency: CurrencyCode;
   unverifiedCount: number;
   authConfigured: boolean;
+  isDemo?: boolean;
   currentUser: AuthUser | null;
   onOpenMobileNav: () => void;
   onOpenExpenses: () => void;
@@ -31,6 +32,8 @@ export function Topbar({
   onOpenSecuritySettings: () => void;
   onLogout: () => void;
 }) {
+  const demoMode = Boolean(isDemo || currentUser?.isDemo);
+
   return (
     <header className="topbar">
       <div className="topbar-left">
@@ -45,30 +48,35 @@ export function Topbar({
         <span className="breadcrumb">{groupName}</span>
         <span className="currency-badge">{groupCurrency}</span>
         <ChevronRight size={14} className="breadcrumb-sep" />
-        <strong>{screen}</strong>
+        <strong>{screen === "Overview" ? "Dashboard" : screen}</strong>
       </div>
 
       <div className="topbar-actions">
-        <span
-          className="sync-status"
-          title={
-            authConfigured
-              ? "Authenticated via Supabase HttpOnly session and Row Level Security"
-              : "Running in local preview mode; configure Supabase env vars for live auth and sync"
-          }
-        >
-          <span className={`sync-dot ${authConfigured ? "" : "sync-dot-amber"}`} />
-          <span className="sync-text">{authConfigured ? "Supabase RLS synced" : "Local preview"}</span>
-        </span>
+        {demoMode ? (
+          <span
+            className="demo-pill-tag"
+            title="Isolated Demo Explorer session seeded with sample Goa Trip 2026 data"
+          >
+            DEMO · Isolated Session
+          </span>
+        ) : (
+          <span
+            className="sync-status"
+            title="Authenticated via Supabase HttpOnly session and Row Level Security"
+          >
+            <ShieldCheck size={13} className="teal-accent" />
+            <span className="sync-text">{authConfigured ? "RLS Session Active" : "Protected"}</span>
+          </span>
+        )}
 
         <button
           type="button"
           className="copilot-trigger"
           onClick={onOpenCopilot}
-          aria-label="Open AI Money Mind assistant"
+          aria-label="Open AI Group Financial Agent"
         >
           <Bot size={15} />
-          <span>Money Mind</span>
+          <span>AI Agent</span>
         </button>
 
         <button
@@ -92,7 +100,7 @@ export function Topbar({
           }
           title={
             unverifiedCount > 0
-              ? `${unverifiedCount} expenses awaiting receipt review`
+              ? `${unverifiedCount} expenses awaiting Proof Engine review`
               : "View expenses"
           }
         >
@@ -100,31 +108,28 @@ export function Topbar({
           {unverifiedCount > 0 && <i aria-hidden="true" />}
         </button>
 
-        {authConfigured && currentUser ? (
+        {currentUser && (
           <>
             <button
               type="button"
               className="top-avatar"
               onClick={onOpenSettings}
-              aria-label={`Workspace settings for ${currentUser.fullName}`}
-              title={`${currentUser.fullName} · Settings`}
+              aria-label={`Workspace settings for ${demoMode ? "Demo Explorer (DEMO)" : currentUser.fullName}`}
+              title={`${demoMode ? "Demo Explorer (DEMO)" : currentUser.fullName} · Account settings`}
             >
               {currentUser.initials}
             </button>
             <button
               type="button"
-              className="icon-button"
+              className="button button-outline button-sm"
               onClick={onLogout}
-              aria-label="Sign out"
-              title="Sign out"
+              aria-label={demoMode ? "Exit Demo and return to login" : "Sign out"}
+              title={demoMode ? "Exit Demo and return to login" : "Sign out"}
             >
-              <LogOut size={16} />
+              <LogOut size={14} />
+              <span className="logout-label">{demoMode ? "Exit Demo" : "Sign out"}</span>
             </button>
           </>
-        ) : (
-          <Link href="/login" className="button button-outline topbar-auth-link" title="Account sign in">
-            <LogIn size={14} /> Sign in
-          </Link>
         )}
       </div>
     </header>

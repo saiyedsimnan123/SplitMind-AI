@@ -3,6 +3,7 @@ import {
   applySessionCookies,
   deriveSafeSessionId,
   getRequestSession,
+  isDemoAuthUser,
   parseDeviceSummary,
   updateSupabaseUser,
   verifySupabaseTokenHash,
@@ -67,10 +68,16 @@ export async function POST(request: Request) {
       { status: 401 },
     );
   }
+  if (isDemoAuthUser(session.user)) {
+    return NextResponse.json(
+      { error: "Demo accounts do not have editable password credentials." },
+      { status: 403 },
+    );
+  }
 
   try {
     const updatedUser = await updateSupabaseUser(session.accessToken, { password });
-    const actorLabel = updatedUser.user_metadata?.full_name || updatedUser.email;
+    const actorLabel = updatedUser.user_metadata?.full_name || updatedUser.email || "SplitMind Member";
 
     await recordServerAuditEvent({
       category: "authentication",

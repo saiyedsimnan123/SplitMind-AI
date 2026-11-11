@@ -2,6 +2,7 @@ export const ACCESS_COOKIE = "sm_access_token";
 export const REFRESH_COOKIE = "sm_refresh_token";
 export const SESSION_ID_COOKIE = "sm_session_id";
 export const SESSION_CREATED_COOKIE = "sm_session_created_at";
+export const OAUTH_PKCE_COOKIE = "sm_oauth_pkce";
 
 export function getSupabaseUrl(): string {
   const raw = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";

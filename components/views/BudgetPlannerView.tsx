@@ -4,7 +4,7 @@ import { ArrowUpRight, Check, Clock3, LockKeyhole, Plus, Send, Sparkles } from "
 import { useState } from "react";
 import { getCurrencySymbol, simulateBudget, type Category } from "@/lib/finance";
 import type { CurrencyCode, GroupMember } from "@/lib/types";
-import { ProgressBar, money } from "@/components/ui";
+import { ProgressBar, EngineBadge, money } from "@/components/ui";
 
 type SimulationSnapshot = {
   activeMembers: number;
@@ -111,7 +111,10 @@ export function BudgetPlannerView({
       <section className="panel planner-panel">
         <div className="panel-heading">
           <div>
-            <div className="section-kicker">{groupName.toUpperCase()} · BUDGET</div>
+            <div className="panel-kicker-row">
+              <span className="section-kicker">{groupName.toUpperCase()} · BUDGET</span>
+              <EngineBadge engine="smartsplit" />
+            </div>
             <h2>Shape your shared plan.</h2>
           </div>
           <span className="save-badge">
@@ -232,7 +235,7 @@ export function BudgetPlannerView({
           </button>
           <button
             type="button"
-            className="button button-dark"
+            className="button button-primary"
             disabled={isArchived || !hasChanges}
             onClick={onRequestApplyBudget}
           >
@@ -254,7 +257,10 @@ export function BudgetPlannerView({
       </section>
 
       <aside className="panel planner-aside">
-        <div className="section-kicker">YOUR MONEY TWIN</div>
+        <div className="panel-kicker-row">
+          <span className="section-kicker">SCENARIO SIMULATOR</span>
+          <EngineBadge engine="moneytwin" />
+        </div>
         <h2>
           Plans change.
           <br />
@@ -307,7 +313,7 @@ export function BudgetPlannerView({
           </p>
         )}
 
-        <button type="button" className="button button-dark full-button" onClick={runSimulation}>
+        <button type="button" className="button button-primary full-button" onClick={runSimulation}>
           <Sparkles size={14} /> Run MoneyTwin simulation
         </button>
 

@@ -8,7 +8,7 @@ import type {
   SettlementRecord,
   SettlementTransfer,
 } from "@/lib/types";
-import { Avatar, money } from "@/components/ui";
+import { Avatar, EngineBadge, money } from "@/components/ui";
 
 export function SettlementsView({
   groupName,
@@ -42,7 +42,10 @@ export function SettlementsView({
       <section className="panel full-panel">
         <div className="panel-heading">
           <div>
-            <div className="section-kicker">{groupName.toUpperCase()} · FEWEST TRANSFERS</div>
+            <div className="panel-kicker-row">
+              <span className="section-kicker">{groupName.toUpperCase()} · FEWEST TRANSFERS</span>
+              <EngineBadge engine="settlement" />
+            </div>
             <h2>A fair way to settle up.</h2>
           </div>
           <span className="save-badge">

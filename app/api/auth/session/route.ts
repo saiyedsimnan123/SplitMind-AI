@@ -3,6 +3,7 @@ import {
   applySessionCookies,
   clearSessionCookies,
   getRequestSession,
+  isDemoAuthUser,
   parseDeviceSummary,
 } from "@/lib/supabase/auth";
 import { isSupabaseAuthConfigured } from "@/lib/supabase/config";
@@ -57,15 +58,26 @@ export async function GET(request: Request) {
     // Use auth metadata fallback if profile table isn't migrated yet.
   }
 
+  const isDemo = isDemoAuthUser(session.user);
+  const providerLabel = isDemo
+    ? "Supabase Anonymous Auth · Isolated Demo"
+    : profile.authProvider === "google"
+      ? "Google OAuth (Supabase PKCE · HttpOnly)"
+      : profile.authProvider === "phone"
+        ? "Phone OTP (Supabase + Twilio SMS · HttpOnly)"
+        : "Supabase Auth · HttpOnly session";
+
   const res = NextResponse.json({
     authConfigured: true,
     authenticated: true,
+    isDemo,
     user: profile,
     session: {
       authenticated: true,
       authConfigured: true,
+      isDemo,
       sessionId: session.sessionId,
-      provider: "Supabase Auth · HttpOnly session",
+      provider: providerLabel,
       createdAt: session.sessionCreatedAt,
       deviceLabel,
       storageMode: "supabase_http_only",

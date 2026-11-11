@@ -24,16 +24,34 @@ import { useState } from "react";
 import { BrandMark, planTypeLabel } from "@/components/ui";
 import type { AuthUser, GroupRecord, Screen, SettingsTab } from "@/lib/types";
 
-export const navItems: { label: Screen; icon: typeof LayoutDashboard }[] = [
-  { label: "Overview", icon: LayoutDashboard },
-  { label: "Groups", icon: WalletCards },
-  { label: "Budget planner", icon: ArrowLeftRight },
-  { label: "Expenses", icon: ReceiptText },
-  { label: "Payments", icon: CreditCard },
-  { label: "Settlements", icon: ArrowDownLeft },
-  { label: "AI Financial Agent", icon: Bot },
-  { label: "Activity", icon: Clock3 },
-  { label: "Settings", icon: Settings2 },
+export const navGroups: {
+  title: string;
+  items: { label: Screen; displayLabel?: string; icon: typeof LayoutDashboard }[];
+}[] = [
+  {
+    title: "CORE WORKSPACE",
+    items: [
+      { label: "Overview", displayLabel: "Dashboard", icon: LayoutDashboard },
+      { label: "Groups", icon: WalletCards },
+      { label: "Expenses", icon: ReceiptText },
+      { label: "Settlements", icon: ArrowDownLeft },
+    ],
+  },
+  {
+    title: "FINANCIAL ENGINES",
+    items: [
+      { label: "Budget planner", displayLabel: "Budget & MoneyTwin", icon: ArrowLeftRight },
+      { label: "Payments", displayLabel: "IntentPay", icon: CreditCard },
+      { label: "AI Financial Agent", displayLabel: "AI Financial Agent", icon: Bot },
+    ],
+  },
+  {
+    title: "GOVERNANCE",
+    items: [
+      { label: "Activity", icon: Clock3 },
+      { label: "Settings", icon: Settings2 },
+    ],
+  },
 ];
 
 export function Sidebar({
@@ -47,6 +65,7 @@ export function Sidebar({
   onOpenCreateGroup,
   currentUser,
   authConfigured,
+  isDemo,
   unverifiedCount,
   auditCount,
   mobileOpen,
@@ -62,12 +81,14 @@ export function Sidebar({
   onOpenCreateGroup: () => void;
   currentUser: AuthUser | null;
   authConfigured: boolean;
+  isDemo?: boolean;
   unverifiedCount: number;
   auditCount: number;
   mobileOpen: boolean;
   onCloseMobile: () => void;
 }) {
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const demoMode = Boolean(isDemo || currentUser?.isDemo);
   const activeGroups = groups.filter((group) => !group.archivedAt);
   const groupIconChar = activeGroup.name.trim()[0]?.toUpperCase() || "G";
 
@@ -75,7 +96,7 @@ export function Sidebar({
     <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""}`} aria-label="Workspace sidebar">
       <div className="sidebar-brand-row">
         <a
-          className="brand"
+          className="brand brand-light"
           href="#"
           onClick={(event) => {
             event.preventDefault();
@@ -83,8 +104,8 @@ export function Sidebar({
           }}
         >
           <BrandMark />
-          <span className="brand-name">
-            splitmind<span>.</span>
+          <span className="brand-name brand-name-light">
+            SplitMind<span> AI</span>
           </span>
         </a>
         <button
@@ -142,7 +163,7 @@ export function Sidebar({
                         {planTypeLabel(group.planType)} · {group.currency}
                       </small>
                     </span>
-                    {selected && <Check size={14} className="positive" />}
+                    {selected && <Check size={14} className="teal-accent" />}
                   </button>
                 );
               })}
@@ -156,7 +177,7 @@ export function Sidebar({
                   onOpenCreateGroup();
                 }}
               >
-                <FolderPlus size={14} /> Create new group
+                <FolderPlus size={14} /> Create group
               </button>
               <button
                 type="button"
@@ -185,82 +206,94 @@ export function Sidebar({
         </button>
       </div>
 
-      <div className="side-label">WORKSPACE</div>
+      <nav className="nav-sections" aria-label="Main navigation">
+        {navGroups.map((section) => (
+          <div key={section.title} className="nav-section">
+            <div className="side-label">{section.title}</div>
+            <div className="nav-list">
+              {section.items.map(({ label, displayLabel, icon: Icon }) => {
+                const isActive = screen === label && !(label === "Settings" && settingsTab === "security");
+                return (
+                  <button
+                    type="button"
+                    key={label}
+                    onClick={() => onSelectScreen(label)}
+                    className={`nav-item ${isActive ? "active" : ""}`}
+                    aria-current={isActive ? "page" : undefined}
+                  >
+                    <Icon size={16} strokeWidth={1.9} />
+                    <span>{displayLabel ?? label}</span>
+                    {label === "Groups" && (
+                      <span className="nav-count" title={`${activeGroups.length} active groups`}>
+                        {activeGroups.length}
+                      </span>
+                    )}
+                    {label === "Expenses" && (
+                      <span
+                        className={`nav-count ${unverifiedCount > 0 ? "nav-count-warn" : ""}`}
+                        title={
+                          unverifiedCount > 0
+                            ? `${unverifiedCount} unverified of ${activeGroup.expenses.length} expenses`
+                            : `${activeGroup.expenses.length} verified expenses`
+                        }
+                      >
+                        {activeGroup.expenses.length}
+                      </span>
+                    )}
+                    {label === "Activity" && auditCount > 0 && <span className="nav-count">{auditCount}</span>}
+                  </button>
+                );
+              })}
 
-      <nav className="nav-list" aria-label="Main navigation">
-        {navItems.map(({ label, icon: Icon }) => {
-          const isActive = screen === label && !(label === "Settings" && settingsTab === "security");
-          return (
-            <button
-              type="button"
-              key={label}
-              onClick={() => onSelectScreen(label)}
-              className={`nav-item ${isActive ? "active" : ""}`}
-              aria-current={isActive ? "page" : undefined}
-            >
-              <Icon size={17} strokeWidth={1.85} />
-              <span>{label}</span>
-              {label === "Groups" && (
-                <span className="nav-count" title={`${activeGroups.length} active groups`}>
-                  {activeGroups.length}
-                </span>
-              )}
-              {label === "Expenses" && (
-                <span
-                  className={`nav-count ${unverifiedCount > 0 ? "nav-count-warn" : ""}`}
-                  title={
-                    unverifiedCount > 0
-                      ? `${unverifiedCount} unverified of ${activeGroup.expenses.length} expenses`
-                      : `${activeGroup.expenses.length} verified expenses`
-                  }
+              {section.title === "GOVERNANCE" && (
+                <button
+                  type="button"
+                  onClick={onOpenSecuritySettings}
+                  className={`nav-item ${
+                    screen === "Settings" && settingsTab === "security" ? "active" : ""
+                  }`}
+                  aria-current={screen === "Settings" && settingsTab === "security" ? "page" : undefined}
                 >
-                  {activeGroup.expenses.length}
-                </span>
+                  <LockKeyhole size={16} strokeWidth={1.9} />
+                  <span>Security &amp; Activity</span>
+                </button>
               )}
-              {label === "Activity" && auditCount > 0 && <span className="nav-count">{auditCount}</span>}
-            </button>
-          );
-        })}
-
-        <button
-          type="button"
-          onClick={onOpenSecuritySettings}
-          className={`nav-item nav-subitem ${
-            screen === "Settings" && settingsTab === "security" ? "active" : ""
-          }`}
-          aria-current={screen === "Settings" && settingsTab === "security" ? "page" : undefined}
-        >
-          <LockKeyhole size={16} strokeWidth={1.85} />
-          <span>Security &amp; Activity</span>
-        </button>
+            </div>
+          </div>
+        ))}
       </nav>
 
       <div className="sidebar-bottom">
         <div className="upgrade-card">
           <div className="upgrade-card-top">
             <span className="upgrade-icon">
-              <Sparkles size={15} />
+              <Sparkles size={14} />
             </span>
             <span className="upgrade-pill">
-              <ShieldCheck size={12} /> {authConfigured ? "RLS Synced" : "Local Preview"}
+              <ShieldCheck size={12} />{" "}
+              {demoMode ? "DEMO Session" : authConfigured ? "RLS Verified" : "Protected"}
             </span>
           </div>
-          <strong>Good money energy.</strong>
-          <p>Isolated group ledgers, explicit receipt review, and verifiable Sandbox checkout.</p>
+          <strong>Smart Money Mind</strong>
+          <p>Deterministic SmartSplit, Proof review, MoneyTwin &amp; IntentPay.</p>
           <button
             type="button"
             className="upgrade-link"
             onClick={() => onSelectScreen("AI Financial Agent")}
           >
-            Ask AI Money Mind <ArrowUpRight size={13} />
+            Launch AI Agent <ArrowUpRight size={13} />
           </button>
         </div>
 
         <button type="button" className="profile-button" onClick={() => onSelectScreen("Settings")}>
-          <span className="profile-avatar">{currentUser?.initials ?? "LP"}</span>
+          <span className="profile-avatar">{currentUser?.initials ?? "SM"}</span>
           <span className="profile-meta">
-            <strong>{currentUser?.fullName ?? "Local Preview"}</strong>
-            <small>{currentUser?.email ?? "No Supabase session"}</small>
+            <strong>{demoMode ? "Demo Explorer (DEMO)" : (currentUser?.fullName ?? "Account")}</strong>
+            <small>
+              {demoMode
+                ? "Sample workspace · Isolated"
+                : currentUser?.email || currentUser?.phone || "Workspace member"}
+            </small>
           </span>
           <MoreHorizontal size={17} />
         </button>

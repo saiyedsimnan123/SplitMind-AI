@@ -103,9 +103,9 @@ export function AgentRail({
               <Bot size={17} />
             </span>
             <div>
-              <strong>Group money mind</strong>
+              <strong>AI Group Agent</strong>
               <small>
-                <i /> READY WHEN YOU ARE
+                <i /> DETERMINISTIC + GEMINI
               </small>
             </div>
           </div>

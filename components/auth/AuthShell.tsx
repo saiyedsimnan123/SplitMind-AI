@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { ArrowLeft, LockKeyhole, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ArrowRight, LockKeyhole, ShieldAlert, ShieldCheck } from "lucide-react";
+import { AuthVisualPreview } from "@/components/auth/AuthVisualPreview";
 import { BrandMark } from "@/components/ui";
 
 export function AuthShell({
+  activeRoute,
   kicker,
   title,
   subtitle,
@@ -10,6 +12,7 @@ export function AuthShell({
   children,
   footer,
 }: {
+  activeRoute: "login" | "signup" | "forgot" | "reset";
   kicker: string;
   title: string;
   subtitle: string;
@@ -17,72 +20,72 @@ export function AuthShell({
   children: React.ReactNode;
   footer: React.ReactNode;
 }) {
+  const headerAction =
+    activeRoute === "login"
+      ? { href: "/signup", label: "Create account" }
+      : { href: "/login", label: "Sign in" };
+
   return (
-    <div className="auth-page">
-      <header className="auth-topbar">
-        <Link href="/" className="brand">
-          <BrandMark />
-          <span className="brand-name">
-            splitmind<span>.</span>
+    <div className="auth-viewport">
+      <div className="auth-bg-grid" aria-hidden="true" />
+      <div className="auth-glow auth-glow-blue" aria-hidden="true" />
+      <div className="auth-glow auth-glow-violet" aria-hidden="true" />
+
+      <header className="auth-top-bar">
+        <Link href="/login" className="brand brand-light">
+          <BrandMark size={30} />
+          <span className="brand-name brand-name-light">
+            SplitMind<span> AI</span>
           </span>
         </Link>
 
-        {!authConfigured && (
-          <Link href="/" className="button button-outline">
-            <ArrowLeft size={14} /> Open local preview
-          </Link>
-        )}
+        <Link href={headerAction.href} className="auth-top-action">
+          <span>{headerAction.label}</span>
+          <ArrowRight size={14} />
+        </Link>
       </header>
 
-      <main className="auth-main">
-        <section className="panel auth-card">
-          <div className="section-kicker">{kicker}</div>
-          <h1>{title}</h1>
-          <p className="muted-copy">{subtitle}</p>
+      <main className="auth-center-stage">
+        <div className="auth-focused-column">
+          <div className="auth-page-hero">
+            <span className="auth-kicker-pill">{kicker}</span>
+            <h1>{title}</h1>
+            <p>{subtitle}</p>
+          </div>
 
-          {!authConfigured && (
-            <div className="receipt-missing-box" role="status" style={{ marginBottom: 16 }}>
-              <ShieldAlert size={18} />
-              <div>
-                <strong>Supabase Auth is not configured in this environment</strong>
-                <p>
-                  Set <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> (plus{" "}
-                  <code>SUPABASE_SERVICE_ROLE_KEY</code>) in <code>.env.local</code> and apply the SQL
-                  migrations to enable live authentication. Fake login simulation is disabled.
-                </p>
+          <section className="auth-surface-card" aria-label={title}>
+            {!authConfigured && (
+              <div className="auth-config-alert" role="status">
+                <ShieldAlert size={18} />
+                <div>
+                  <strong>Supabase Auth configuration required</strong>
+                  <p>
+                    Add <code>SUPABASE_URL</code>, <code>SUPABASE_ANON_KEY</code>, and{" "}
+                    <code>SUPABASE_SERVICE_ROLE_KEY</code> in <code>.env.local</code> and run the
+                    migrations to sign in. Client-side login bypasses are disabled.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {children}
+
+            <div className="auth-security-foot">
+              <div className="auth-security-badge">
+                <LockKeyhole size={13} />
+                <span>HttpOnly server cookies · Zero token storage in localStorage</span>
+              </div>
+              <div className="auth-security-badge">
+                <ShieldCheck size={13} />
+                <span>Supabase Row Level Security &amp; immutable audit logging</span>
               </div>
             </div>
-          )}
 
-          {children}
+            <div className="auth-footer">{footer}</div>
+          </section>
 
-          <div className="safety-note" style={{ marginTop: 18 }}>
-            <LockKeyhole size={14} />
-            <span>
-              Sessions are stored in server-set <strong>HttpOnly</strong> cookies—never in browser{" "}
-              <code>localStorage</code>.
-            </span>
-          </div>
-
-          <div className="auth-footer">{footer}</div>
-        </section>
-
-        <aside className="auth-aside">
-          <div className="upgrade-pill">
-            <ShieldCheck size={12} /> Server-verified RLS
-          </div>
-          <h2>One calm ledger for every shared plan.</h2>
-          <p>
-            Trips, roommate apartments, events, and group budgets stay strictly isolated per group with
-            immutable audit history.
-          </p>
-          <ul className="auth-highlights">
-            <li>Isolated group ledgers, currencies, and settlement plans</li>
-            <li>Server-side Supabase Auth with automatic token verification</li>
-            <li>Row Level Security policies across profiles, groups, and expenses</li>
-            <li>Dedicated Security &amp; Activity log under Settings</li>
-          </ul>
-        </aside>
+          <AuthVisualPreview />
+        </div>
       </main>
     </div>
   );

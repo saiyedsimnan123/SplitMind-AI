@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { maskEmailForAudit } from "@/lib/audit";
+import { validateE164Phone } from "@/lib/phone";
 import {
   applySessionCookies,
   deriveSafeSessionId,
   parseDeviceSummary,
   signUpWithSupabase,
 } from "@/lib/supabase/auth";
-import { getCanonicalOrigin, isSupabaseAuthConfigured } from "@/lib/supabase/config";
+import { isSupabaseAuthConfigured } from "@/lib/supabase/config";
 import { ensureUserProfile, recordServerAuditEvent } from "@/lib/supabase/db";
+import { getClientKey, recordOtpResendAttempt } from "@/lib/supabase/rate-limit";
 
 export async function POST(request: Request) {
   if (!isSupabaseAuthConfigured()) {
@@ -20,9 +22,9 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { fullName?: unknown; email?: unknown; password?: unknown };
+  let body: { fullName?: unknown; email?: unknown; password?: unknown; phone?: unknown };
   try {
-    body = (await request.json()) as { fullName?: unknown; email?: unknown; password?: unknown };
+    body = (await request.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
   }
@@ -30,6 +32,7 @@ export async function POST(request: Request) {
   const fullName = typeof body.fullName === "string" ? body.fullName.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
+  const rawPhone = typeof body.phone === "string" ? body.phone.trim() : "";
 
   if (!fullName || fullName.length > 80) {
     return NextResponse.json({ error: "Enter your full name (under 80 characters)." }, { status: 400 });
@@ -41,16 +44,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Choose a password with at least 8 characters." }, { status: 400 });
   }
 
+  let validatedPhone: string | undefined;
+  if (rawPhone) {
+    const check = validateE164Phone(rawPhone);
+    if (!check.ok) {
+      return NextResponse.json({ error: check.error }, { status: 400 });
+    }
+    validatedPhone = check.e164;
+  }
+
   const deviceLabel = parseDeviceSummary(request.headers.get("user-agent"));
-  const origin = getCanonicalOrigin(request.url);
+  const clientIp = getClientKey(request);
 
   try {
     const result = await signUpWithSupabase({
       email,
       password,
       fullName,
-      redirectTo: `${origin}/api/auth/confirm?next=/`,
+      contactPhone: validatedPhone,
     });
+
+    if (result.duplicateUser) {
+      return NextResponse.json(
+        { error: "An account with this email already exists. Please sign in or reset your password." },
+        { status: 409 },
+      );
+    }
 
     const userId = result.user?.id ?? null;
 
@@ -89,6 +108,7 @@ export async function POST(request: Request) {
       });
 
       const response = NextResponse.json({
+        requiresOtpVerification: false,
         requiresEmailConfirmation: false,
         user: profile ?? { id: userId, email, fullName },
       });
@@ -106,25 +126,32 @@ export async function POST(request: Request) {
       return response;
     }
 
+    recordOtpResendAttempt(email, clientIp);
+
     await recordServerAuditEvent({
       category: "authentication",
-      eventType: "auth.signup",
-      eventName: "Account registration pending confirmation",
+      eventType: "auth.otp.sent",
+      eventName: "Signup OTP sent",
       status: "info",
       actorUserId: userId,
       actorLabel: fullName,
-      description: `Registered ${maskEmailForAudit(email)}; email verification link sent.`,
+      description: `Sent 6-digit signup verification OTP to ${maskEmailForAudit(email)} (${deviceLabel}).`,
       metadata: { device: deviceLabel },
     });
 
     return NextResponse.json({
+      requiresOtpVerification: true,
       requiresEmailConfirmation: true,
-      message: "Check your email to confirm your account before signing in.",
+      email,
+      cooldownSeconds: 60,
+      message: "Enter the 6-digit verification code sent to your email address.",
     });
   } catch (error) {
+    const msg = error instanceof Error ? error.message : "Could not create your account.";
+    const isDuplicate = /already registered|already exists/i.test(msg);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not create your account." },
-      { status: 400 },
+      { error: isDuplicate ? "An account with this email already exists. Please sign in or reset your password." : msg },
+      { status: isDuplicate ? 409 : 400 },
     );
   }
 }

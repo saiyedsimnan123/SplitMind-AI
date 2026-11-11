@@ -1,18 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { ACCESS_COOKIE, REFRESH_COOKIE, isSupabaseAuthConfigured } from "@/lib/supabase/config";
+import { ACCESS_COOKIE, REFRESH_COOKIE } from "@/lib/supabase/config";
 
 const PUBLIC_PAGES = new Set(["/login", "/signup", "/forgot-password", "/reset-password"]);
 const PUBLIC_API_PREFIX = "/api/auth/";
 
 export function middleware(request: NextRequest) {
-  if (!isSupabaseAuthConfigured()) {
-    return NextResponse.next();
-  }
-
   const { pathname, search } = request.nextUrl;
 
   if (
     pathname.startsWith("/_next") ||
+    pathname.startsWith("/images/") ||
     pathname === "/favicon.ico" ||
     pathname.startsWith(PUBLIC_API_PREFIX)
   ) {

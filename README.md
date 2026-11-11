@@ -8,14 +8,16 @@
 - **Interactive Budgets & SmartSplit**: Edit category budgets, apply updates with confirmation to recalculate remaining balances, run non-destructive MoneyTwin what-if simulations, record member contributions & settlement transfers, and search/filter groups and expenses.
 - **Human Receipt Verification**: Expense submissions remain **Unverified** until a person opens the attached image/PDF receipt and explicitly confirms review.
 - **Group Financial Agent**: Calls deterministic calculation functions in `lib/finance.ts` scoped to the active group and currency. Optionally explains verified calculations using Gemini when `GEMINI_API_KEY` is configured.
-- **Supabase Auth & Protected Routes**: Server-side authentication (`/login`, `/signup`, `/forgot-password`, `/reset-password`, `/api/auth/*`) using `HttpOnly`, `SameSite=Lax` cookies—never storing passwords or tokens in `localStorage`.
+- **Multi-Method Supabase Auth & Protected Routes**: Server-side authentication (`/login`, `/signup`, `/forgot-password`, `/reset-password`, `/api/auth/*`) supporting **Email OTP & Password**, **Phone OTP (Supabase + Twilio SMS, defaulting to India `+91`)**, **Google OAuth (PKCE)**, and **Explore Demo →** using `HttpOnly`, `SameSite=Lax` cookies—never storing passwords or tokens in `localStorage`.
+- **Isolated Demo Mode (`Explore Demo →`)**: Launches an ephemeral Supabase Anonymous session (`DEMO`) seeded with the 8-friend, 3-day **Goa Trip 2026** group, isolated via RLS and blocked from credential edits or real PayPal API calls.
 - **Settings → Security & Activity**: Dedicated audit trail separating Authentication/Session events from Group/Financial ledger events, with search and filters by event type, group, status, and date, plus active session/device overview and session revocation controls (`local`, `others`, `global`).
 - **PayPal Sandbox Checkout**: Server-side order creation and capture verification with client idempotency protection and Supabase ledger persistence (`public.splitmind_payments`).
 
-## Local Preview vs. Live Supabase Mode
+## Authentication-First Access
 
-- **Without Supabase credentials (`SUPABASE_URL`, `SUPABASE_ANON_KEY`)**: The app runs in an explicit **Local Preview Mode** (stored in browser storage) so you can explore multi-group creation, switching, budgets, expenses, and settlements without fake authentication. Authentication routes honestly report that Supabase Auth is unconfigured and refuse fake login simulation.
-- **With Supabase credentials configured**: Middleware and server checks enforce authenticated access across `/`, `/api/groups/*`, `/api/profile`, `/api/security/*`, `/api/payments/*`, and `/api/agent`. Every group query/mutation enforces membership/ownership permissions and PostgreSQL RLS (`auth.uid()`).
+- **Unauthenticated visitors**: Middleware and server checks redirect `/` and `/dashboard` (and block `/api/groups/*`, `/api/profile`, `/api/security/*`) to `/login`. Authentication is always the entry point—there is no unauthenticated dashboard bypass or `localStorage` login simulation.
+- **Without Supabase credentials (`SUPABASE_URL`, `SUPABASE_ANON_KEY`)**: The `/login`, `/signup`, `/forgot-password`, and `/reset-password` pages honestly report that Supabase Auth must be configured in `.env.local` before signing in.
+- **With Supabase credentials configured**: Full Supabase Auth sign-up, sign-in (`HttpOnly` cookies with Remember-me duration support), password recovery, session refresh/revocation, PostgreSQL Row Level Security (`auth.uid()`), and immutable `security_audit_events` are active.
 
 ## Run locally
 
@@ -35,11 +37,45 @@ Open [http://localhost:3000](http://localhost:3000).
 2. Apply the SQL migrations in order using the Supabase CLI or SQL Editor:
    - [`supabase/migrations/0001_initial_payments.sql`](./supabase/migrations/0001_initial_payments.sql)
    - [`supabase/migrations/0002_multi_group_auth_and_audit.sql`](./supabase/migrations/0002_multi_group_auth_and_audit.sql)
+   - [`supabase/migrations/0003_multi_method_auth_profiles.sql`](./supabase/migrations/0003_multi_method_auth_profiles.sql)
    *(Alternatively, [`supabase/schema.sql`](./supabase/schema.sql) contains the consolidated schema.)*
-3. In **Supabase Authentication → URL Configuration**, add your redirect URLs:
+3. In **Supabase Authentication → URL Configuration**, add your redirect URLs (for Google OAuth PKCE callback, password recovery, and confirmation flows):
+   - `http://localhost:3000/api/auth/callback`
    - `http://localhost:3000/api/auth/confirm`
+   - `http://localhost:3000/reset-password`
+   - `https://<your-domain>/api/auth/callback`
    - `https://<your-domain>/api/auth/confirm`
-4. Configure `.env.local` with `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `APP_URL`.
+   - `https://<your-domain>/reset-password`
+4. Configure **6-Digit Email OTP (Signup & Passwordless Login)** in Supabase Dashboard:
+   - Go to **Authentication → Providers → Email** and ensure **Enable Email provider** and **Confirm email** are turned **ON**.
+   - Go to **Authentication → Email Templates → Confirm signup** and update the body to display the 6-digit OTP token `{{ .Token }}` instead of relying on `{{ .ConfirmationURL }}` (for example: `Your SplitMind AI verification code is: <strong>{{ .Token }}</strong>`).
+   - Go to **Authentication → Email Templates → Magic Link** and display `{{ .Token }}` as well so passwordless 6-digit **Email OTP login** delivers a numeric OTP code cleanly.
+   - Keep **Reset Password** using `{{ .ConfirmationURL }}` so `/forgot-password` and `/reset-password` continue using `/api/auth/confirm?type=recovery`.
+5. Configure **Phone OTP (Supabase + Twilio)**:
+   - **In Twilio Console**:
+     1. Create a **Messaging Service** under **Messaging → Services** and assign an SMS-capable Twilio number / Sender ID to its **Sender Pool**.
+     2. Under **Messaging → Settings → Geo Permissions**, enable **India (+91)** and any other target countries.
+     3. **India (`+91`) SMS delivery requirements**: Carriers in India enforce **TRAI DLT (Distributed Ledger Technology)** regulations for A2P SMS. Register your Entity ID, Header (Sender ID), and OTP SMS content template (matching Supabase's OTP message text, e.g., `Your verification code is {{ .Code }}`) on an Indian telecom DLT portal and link them in Twilio / your Twilio Messaging Service before sending production OTP SMS to Indian mobile numbers.
+     4. Copy your **Twilio Account SID**, **Twilio Auth Token**, and **Twilio Messaging Service SID (`MG...`)**.
+   - **In Supabase Dashboard**:
+     1. Go to **Authentication → Providers → Phone** and toggle **Enable Phone provider** **ON**.
+     2. Select **Twilio** as the SMS provider and paste your **Twilio Account SID**, **Twilio Auth Token**, and **Twilio Message Service SID** directly in Supabase Dashboard (never commit them into this repository).
+     3. Keep **Enable phone confirmations** **ON** and save.
+6. Configure **Google OAuth (Supabase Auth + Google Cloud)**:
+   - **In Google Cloud Console**:
+     1. Open **APIs & Services → OAuth consent screen**, configure your External/Internal app name (**SplitMind AI**), support email, and authorized domains.
+     2. Open **APIs & Services → Credentials → Create Credentials → OAuth client ID** and choose **Web application**.
+     3. Under **Authorized redirect URIs**, add Supabase's callback URL:
+        `https://<your-project-ref>.supabase.co/auth/v1/callback`
+     4. Copy the generated **Google Client ID** and **Google Client Secret**.
+   - **In Supabase Dashboard**:
+     1. Go to **Authentication → Providers → Google** and toggle **Enable Sign in with Google** **ON**.
+     2. Paste your **Client ID** and **Client Secret** directly in Supabase Dashboard and save.
+     3. Confirm `http://localhost:3000/api/auth/callback` (and your production URL) is listed under **Authentication → URL Configuration → Redirect URLs**.
+7. Enable **Anonymous Sign-Ins** for the **Explore Demo →** flow:
+   - Go to **Authentication → Providers** (or **Authentication → Settings**) and enable **Allow anonymous sign-ins**.
+   - Each demo visitor receives a separate temporary `auth.uid()` (`is_anonymous: true`), isolated by PostgreSQL RLS so demo changes cannot affect real user workspaces.
+8. Configure `.env.local` with `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `APP_URL`.
 
 ## Environment variables
 

@@ -38,7 +38,8 @@ $$;
 -- 1. User profiles linked to Supabase Auth users
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  email text not null,
+  email text not null default '',
+  phone text not null default '',
   full_name text not null check (char_length(trim(full_name)) between 1 and 80),
   initials text not null check (char_length(trim(initials)) between 1 and 4),
   avatar_color text not null default 'coral',
@@ -47,6 +48,8 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create index if not exists idx_profiles_phone on public.profiles(phone) where phone <> '';
 
 drop trigger if exists profiles_updated_at on public.profiles;
 create trigger profiles_updated_at
@@ -63,10 +66,21 @@ as $$
 declare
   raw_name text;
   derived_initials text;
+  normalized_phone text;
 begin
+  normalized_phone := coalesce(new.phone, '');
+  if normalized_phone <> '' and left(normalized_phone, 1) <> '+' then
+    normalized_phone := '+' || normalized_phone;
+  end if;
+
   raw_name := coalesce(
     nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''),
+    nullif(trim(new.raw_user_meta_data ->> 'name'), ''),
     nullif(split_part(coalesce(new.email, ''), '@', 1), ''),
+    case
+      when normalized_phone <> '' then 'Member ' || right(normalized_phone, 4)
+      else null
+    end,
     'Member'
   );
   raw_name := left(raw_name, 80);
@@ -80,10 +94,11 @@ begin
     derived_initials := 'SM';
   end if;
 
-  insert into public.profiles (id, email, full_name, initials)
-  values (new.id, coalesce(new.email, ''), raw_name, derived_initials)
+  insert into public.profiles (id, email, phone, full_name, initials)
+  values (new.id, coalesce(new.email, ''), normalized_phone, raw_name, derived_initials)
   on conflict (id) do update
-    set email = excluded.email;
+    set email = case when excluded.email <> '' then excluded.email else public.profiles.email end,
+        phone = case when excluded.phone <> '' then excluded.phone else public.profiles.phone end;
 
   return new;
 end;

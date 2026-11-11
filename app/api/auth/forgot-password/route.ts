@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   }
 
   const origin = getCanonicalOrigin(request.url);
-  const redirectTo = `${origin}/api/auth/confirm?next=/reset-password`;
+  const redirectTo = `${origin}/reset-password`;
   const deviceLabel = parseDeviceSummary(request.headers.get("user-agent"));
 
   try {

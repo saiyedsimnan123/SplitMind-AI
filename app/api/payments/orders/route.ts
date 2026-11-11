@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { approvalUrl, findPaymentByKey, paymentKey, paypalRequest, persistPayment } from "@/lib/paypal";
-import { applySessionCookies, getRequestSession } from "@/lib/supabase/auth";
+import { applySessionCookies, getRequestSession, isDemoAuthUser } from "@/lib/supabase/auth";
 import { isSupabaseAuthConfigured } from "@/lib/supabase/config";
 import { recordServerAuditEvent, requireGroupAccess } from "@/lib/supabase/db";
 
@@ -17,9 +17,24 @@ export async function POST(request: Request) {
       if (!session) {
         return NextResponse.json({ error: "Sign in to create a PayPal Sandbox order." }, { status: 401 });
       }
+      if (isDemoAuthUser(session.user)) {
+        await recordServerAuditEvent({
+          category: "security",
+          eventType: "security.warning",
+          eventName: "Blocked PayPal order in Demo Mode",
+          status: "warning",
+          actorUserId: session.user.id,
+          actorLabel: "Demo Explorer (DEMO)",
+          description: "Blocked live PayPal order creation attempt from an isolated demo session.",
+        });
+        return NextResponse.json(
+          { error: "Real PayPal transactions are disabled in Demo Mode. Use Simulate Demo Payment instead." },
+          { status: 403 },
+        );
+      }
       refreshedSession = session;
       userId = session.user.id;
-      userLabel = session.user.user_metadata?.full_name || session.user.email;
+      userLabel = session.user.user_metadata?.full_name || session.user.email || "SplitMind Member";
     }
 
     const body = (await request.json()) as {
