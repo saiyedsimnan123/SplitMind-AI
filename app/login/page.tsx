@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { LoginForm } from "@/components/auth/LoginForm";
-import { getServerSession, safeRedirectPath } from "@/lib/supabase/auth";
+import { getServerSession, isDemoAuthUser, safeRedirectPath } from "@/lib/supabase/auth";
 import { isSupabaseAuthConfigured } from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export default async function LoginPage({
 
   if (authConfigured) {
     const session = await getServerSession();
-    if (session) {
+    if (session && !isDemoAuthUser(session.user)) {
       redirect("/");
     }
   }
@@ -35,9 +35,9 @@ export default async function LoginPage({
       authConfigured={authConfigured}
       footer={
         <span>
-          New to SplitMind AI?{" "}
-          <Link href="/signup" className="inline-link">
-            Create your account
+          Forgot your password?{" "}
+          <Link href="/forgot-password" className="inline-link">
+            Recover account access
           </Link>
         </span>
       }

@@ -8,7 +8,8 @@
 - **Interactive Budgets & SmartSplit**: Edit category budgets, apply updates with confirmation to recalculate remaining balances, run non-destructive MoneyTwin what-if simulations, record member contributions & settlement transfers, and search/filter groups and expenses.
 - **Human Receipt Verification**: Expense submissions remain **Unverified** until a person opens the attached image/PDF receipt and explicitly confirms review.
 - **Group Financial Agent**: Calls deterministic calculation functions in `lib/finance.ts` scoped to the active group and currency. Optionally explains verified calculations using Gemini when `GEMINI_API_KEY` is configured.
-- **Supabase Auth & Protected Routes**: Server-side authentication (`/login`, `/signup`, `/forgot-password`, `/reset-password`, `/api/auth/*`) using `HttpOnly`, `SameSite=Lax` cookies—never storing passwords or tokens in `localStorage`.
+- **Supabase Auth & Protected Routes**: Server-side authentication (`/login`, `/signup` with 6-digit email OTP verification, `/forgot-password`, `/reset-password`, `/api/auth/*`) using `HttpOnly`, `SameSite=Lax` cookies—never storing passwords or tokens in `localStorage`.
+- **Isolated Demo Mode (`Explore Demo →`)**: Launches an ephemeral Supabase Anonymous session (`DEMO`) seeded with the 8-friend, 3-day **Goa Trip 2026** group, isolated via RLS and blocked from credential edits or real PayPal API calls.
 - **Settings → Security & Activity**: Dedicated audit trail separating Authentication/Session events from Group/Financial ledger events, with search and filters by event type, group, status, and date, plus active session/device overview and session revocation controls (`local`, `others`, `global`).
 - **PayPal Sandbox Checkout**: Server-side order creation and capture verification with client idempotency protection and Supabase ledger persistence (`public.splitmind_payments`).
 
@@ -37,12 +38,19 @@ Open [http://localhost:3000](http://localhost:3000).
    - [`supabase/migrations/0001_initial_payments.sql`](./supabase/migrations/0001_initial_payments.sql)
    - [`supabase/migrations/0002_multi_group_auth_and_audit.sql`](./supabase/migrations/0002_multi_group_auth_and_audit.sql)
    *(Alternatively, [`supabase/schema.sql`](./supabase/schema.sql) contains the consolidated schema.)*
-3. In **Supabase Authentication → URL Configuration**, add your redirect URLs:
+3. In **Supabase Authentication → URL Configuration**, add your redirect URLs (for password reset and recovery links):
    - `http://localhost:3000/api/auth/confirm`
    - `http://localhost:3000/reset-password`
    - `https://<your-domain>/api/auth/confirm`
    - `https://<your-domain>/reset-password`
-4. Configure `.env.local` with `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `APP_URL`.
+4. Configure **6-Digit Email OTP Signup Verification** in the Supabase Dashboard:
+   - Go to **Authentication → Providers → Email** and ensure **Enable Email provider** and **Confirm email** are turned **ON**.
+   - Go to **Authentication → Email Templates → Confirm signup** and update the template body to display the 6-digit OTP token `{{ .Token }}` instead of relying on `{{ .ConfirmationURL }}` (for example: `Your SplitMind AI verification code is: <strong>{{ .Token }}</strong>`).
+   - Keep **Reset Password** using `{{ .ConfirmationURL }}` so `/forgot-password` and `/reset-password` continue using `/api/auth/confirm?type=recovery`.
+5. Enable **Anonymous Sign-Ins** for the **Explore Demo →** flow:
+   - Go to **Authentication → Providers** (or **Authentication → Settings**) and enable **Allow anonymous sign-ins**.
+   - Each demo visitor receives a separate temporary `auth.uid()` (`is_anonymous: true`), isolated by PostgreSQL RLS so demo changes cannot affect real user workspaces.
+6. Configure `.env.local` with `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `APP_URL`.
 
 ## Environment variables
 

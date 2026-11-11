@@ -96,6 +96,8 @@ export function SettingsView({
     }
   };
 
+  const isDemoAccount = Boolean(currentUser?.isDemo || session.isDemo);
+
   const submitPassword = async (event: React.FormEvent) => {
     event.preventDefault();
     setPasswordMsg("");
@@ -172,7 +174,7 @@ export function SettingsView({
               </div>
               {authConfigured && currentUser ? (
                 <button type="button" className="button button-outline button-sm" onClick={onLogoutLocal}>
-                  <LogOut size={13} /> Sign out
+                  <LogOut size={13} /> {isDemoAccount ? "Exit Demo" : "Sign out"}
                 </button>
               ) : (
                 <Link href="/login" className="button button-outline button-sm">
@@ -181,7 +183,26 @@ export function SettingsView({
               )}
             </div>
 
-            {authConfigured && currentUser ? (
+            {authConfigured && currentUser && isDemoAccount ? (
+              <div className="stack-layout" style={{ marginTop: 14 }}>
+                <div className="safety-note">
+                  <ShieldCheck size={15} />
+                  <span>
+                    <strong>DEMO Session</strong> — You are signed in as{" "}
+                    <strong>Demo Explorer (DEMO)</strong> with an isolated temporary workspace.
+                    Account credentials and email settings cannot be modified in Demo Mode.
+                  </span>
+                </div>
+                <div className="proposal-actions">
+                  <button type="button" className="button button-outline" onClick={onLogoutLocal}>
+                    <LogOut size={14} /> Exit Demo / Return to Login
+                  </button>
+                  <Link href="/signup" className="button button-primary">
+                    Create full account
+                  </Link>
+                </div>
+              </div>
+            ) : authConfigured && currentUser ? (
               <form onSubmit={submitProfile} style={{ marginTop: 14 }}>
                 <div className="settings-row">
                   <div>
@@ -256,7 +277,7 @@ export function SettingsView({
             )}
           </section>
 
-          {authConfigured && currentUser && (
+          {authConfigured && currentUser && !isDemoAccount && (
             <section className="panel settings-panel">
               <div className="section-kicker">CREDENTIALS</div>
               <h2>Change password</h2>

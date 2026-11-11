@@ -6,8 +6,9 @@ import {
   parseDeviceSummary,
   signUpWithSupabase,
 } from "@/lib/supabase/auth";
-import { getCanonicalOrigin, isSupabaseAuthConfigured } from "@/lib/supabase/config";
+import { isSupabaseAuthConfigured } from "@/lib/supabase/config";
 import { ensureUserProfile, recordServerAuditEvent } from "@/lib/supabase/db";
+import { getClientKey, recordOtpResendAttempt } from "@/lib/supabase/rate-limit";
 
 export async function POST(request: Request) {
   if (!isSupabaseAuthConfigured()) {
@@ -42,15 +43,21 @@ export async function POST(request: Request) {
   }
 
   const deviceLabel = parseDeviceSummary(request.headers.get("user-agent"));
-  const origin = getCanonicalOrigin(request.url);
+  const clientIp = getClientKey(request);
 
   try {
     const result = await signUpWithSupabase({
       email,
       password,
       fullName,
-      redirectTo: `${origin}/api/auth/confirm?next=/`,
     });
+
+    if (result.duplicateUser) {
+      return NextResponse.json(
+        { error: "An account with this email already exists. Please sign in or reset your password." },
+        { status: 409 },
+      );
+    }
 
     const userId = result.user?.id ?? null;
 
@@ -89,6 +96,7 @@ export async function POST(request: Request) {
       });
 
       const response = NextResponse.json({
+        requiresOtpVerification: false,
         requiresEmailConfirmation: false,
         user: profile ?? { id: userId, email, fullName },
       });
@@ -106,25 +114,32 @@ export async function POST(request: Request) {
       return response;
     }
 
+    recordOtpResendAttempt(email, clientIp);
+
     await recordServerAuditEvent({
       category: "authentication",
-      eventType: "auth.signup",
-      eventName: "Account registration pending confirmation",
+      eventType: "auth.otp.sent",
+      eventName: "Signup OTP sent",
       status: "info",
       actorUserId: userId,
       actorLabel: fullName,
-      description: `Registered ${maskEmailForAudit(email)}; email verification link sent.`,
+      description: `Sent 6-digit signup verification OTP to ${maskEmailForAudit(email)} (${deviceLabel}).`,
       metadata: { device: deviceLabel },
     });
 
     return NextResponse.json({
+      requiresOtpVerification: true,
       requiresEmailConfirmation: true,
-      message: "Check your email to confirm your account before signing in.",
+      email,
+      cooldownSeconds: 60,
+      message: "Enter the 6-digit verification code sent to your email address.",
     });
   } catch (error) {
+    const msg = error instanceof Error ? error.message : "Could not create your account.";
+    const isDuplicate = /already registered|already exists/i.test(msg);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not create your account." },
-      { status: 400 },
+      { error: isDuplicate ? "An account with this email already exists. Please sign in or reset your password." : msg },
+      { status: isDuplicate ? 409 : 400 },
     );
   }
 }

@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     const createdAt = new Date().toISOString();
     const deviceLabel = parseDeviceSummary(request.headers.get("user-agent"));
 
-    let actorLabel = tokens.user.user_metadata?.full_name || tokens.user.email;
+    let actorLabel = tokens.user.user_metadata?.full_name || tokens.user.email || "SplitMind Member";
     try {
       const ensured = await ensureUserProfile(tokens.access_token, tokens.user);
       actorLabel = ensured.profile.fullName;

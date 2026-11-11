@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { SplitMindApp } from "@/components/SplitMindApp";
 import { createInitialGoaGroup } from "@/lib/demo-data";
-import { getServerSession, parseDeviceSummary } from "@/lib/supabase/auth";
+import { getServerSession, isDemoAuthUser, parseDeviceSummary } from "@/lib/supabase/auth";
 import { isSupabaseAuthConfigured } from "@/lib/supabase/config";
 import {
   authUserToFallbackProfile,
@@ -59,11 +59,13 @@ export default async function HomePage() {
     ];
   }
 
+  const isDemo = isDemoAuthUser(session.user);
   const sessionSummary: SessionSummary = {
     authenticated: true,
     authConfigured: true,
+    isDemo,
     sessionId: session.sessionId,
-    provider: "Supabase Auth · HttpOnly session",
+    provider: isDemo ? "Supabase Anonymous Auth · Isolated Demo" : "Supabase Auth · HttpOnly session",
     createdAt: session.sessionCreatedAt,
     deviceLabel,
     storageMode: "supabase_http_only",

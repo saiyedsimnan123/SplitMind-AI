@@ -9,6 +9,7 @@ export function Topbar({
   groupCurrency,
   unverifiedCount,
   authConfigured,
+  isDemo,
   currentUser,
   onOpenMobileNav,
   onOpenExpenses,
@@ -22,6 +23,7 @@ export function Topbar({
   groupCurrency: CurrencyCode;
   unverifiedCount: number;
   authConfigured: boolean;
+  isDemo?: boolean;
   currentUser: AuthUser | null;
   onOpenMobileNav: () => void;
   onOpenExpenses: () => void;
@@ -30,6 +32,8 @@ export function Topbar({
   onOpenSecuritySettings: () => void;
   onLogout: () => void;
 }) {
+  const demoMode = Boolean(isDemo || currentUser?.isDemo);
+
   return (
     <header className="topbar">
       <div className="topbar-left">
@@ -48,13 +52,22 @@ export function Topbar({
       </div>
 
       <div className="topbar-actions">
-        <span
-          className="sync-status"
-          title="Authenticated via Supabase HttpOnly session and Row Level Security"
-        >
-          <ShieldCheck size={13} className="teal-accent" />
-          <span className="sync-text">{authConfigured ? "RLS Session Active" : "Protected"}</span>
-        </span>
+        {demoMode ? (
+          <span
+            className="demo-pill-tag"
+            title="Isolated Demo Explorer session seeded with sample Goa Trip 2026 data"
+          >
+            DEMO · Isolated Session
+          </span>
+        ) : (
+          <span
+            className="sync-status"
+            title="Authenticated via Supabase HttpOnly session and Row Level Security"
+          >
+            <ShieldCheck size={13} className="teal-accent" />
+            <span className="sync-text">{authConfigured ? "RLS Session Active" : "Protected"}</span>
+          </span>
+        )}
 
         <button
           type="button"
@@ -101,8 +114,8 @@ export function Topbar({
               type="button"
               className="top-avatar"
               onClick={onOpenSettings}
-              aria-label={`Workspace settings for ${currentUser.fullName}`}
-              title={`${currentUser.fullName} · Account settings`}
+              aria-label={`Workspace settings for ${demoMode ? "Demo Explorer (DEMO)" : currentUser.fullName}`}
+              title={`${demoMode ? "Demo Explorer (DEMO)" : currentUser.fullName} · Account settings`}
             >
               {currentUser.initials}
             </button>
@@ -110,11 +123,11 @@ export function Topbar({
               type="button"
               className="button button-outline button-sm"
               onClick={onLogout}
-              aria-label="Sign out"
-              title="Sign out"
+              aria-label={demoMode ? "Exit Demo and return to login" : "Sign out"}
+              title={demoMode ? "Exit Demo and return to login" : "Sign out"}
             >
               <LogOut size={14} />
-              <span className="logout-label">Sign out</span>
+              <span className="logout-label">{demoMode ? "Exit Demo" : "Sign out"}</span>
             </button>
           </>
         )}

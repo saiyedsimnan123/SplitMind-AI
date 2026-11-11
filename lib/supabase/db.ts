@@ -1,7 +1,7 @@
 import { buildAuditEvent } from "@/lib/audit";
 import { createInitialGoaGroup } from "@/lib/demo-data";
 import { deriveInitials } from "@/lib/groups";
-import type { SupabaseAuthUser } from "@/lib/supabase/auth";
+import { isDemoAuthUser, type SupabaseAuthUser } from "@/lib/supabase/auth";
 import {
   getSupabaseAnonKey,
   getSupabaseServiceKey,
@@ -205,9 +205,10 @@ export async function adminRestFetch<T>(path: string, init: RequestInit = {}): P
 }
 
 export function authUserToFallbackProfile(user: SupabaseAuthUser): AuthUser {
+  const isDemo = isDemoAuthUser(user);
   const fullName =
     user.user_metadata?.full_name?.trim() ||
-    user.email?.split("@")[0] ||
+    (isDemo ? "Demo Explorer" : user.email?.split("@")[0]) ||
     "SplitMind Member";
   const defaultCurrencyRaw = user.user_metadata?.default_currency;
   const defaultCurrency: CurrencyCode =
@@ -217,11 +218,12 @@ export function authUserToFallbackProfile(user: SupabaseAuthUser): AuthUser {
 
   return {
     id: user.id,
-    email: user.email,
+    email: user.email ?? "",
     fullName,
-    initials: deriveInitials(fullName),
+    initials: isDemo ? "DM" : deriveInitials(fullName),
     avatarColor: user.user_metadata?.avatar_color || "coral",
     defaultCurrency,
+    isDemo,
   };
 }
 
@@ -229,6 +231,7 @@ export async function ensureUserProfile(
   accessToken: string,
   authUser: SupabaseAuthUser,
 ): Promise<{ profile: AuthUser; workspaceInitialized: boolean }> {
+  const isDemo = isDemoAuthUser(authUser);
   const rows = await userRestFetch<DbProfileRow[]>(
     accessToken,
     `profiles?id=eq.${encodeURIComponent(authUser.id)}&select=*`,
@@ -241,9 +244,10 @@ export async function ensureUserProfile(
         id: row.id,
         email: row.email,
         fullName: row.full_name,
-        initials: row.initials,
+        initials: isDemo ? "DM" : row.initials,
         avatarColor: row.avatar_color,
         defaultCurrency: row.default_currency,
+        isDemo,
       },
       workspaceInitialized: row.workspace_initialized,
     };
@@ -270,9 +274,10 @@ export async function ensureUserProfile(
           id: row.id,
           email: row.email,
           fullName: row.full_name,
-          initials: row.initials,
+          initials: isDemo ? "DM" : row.initials,
           avatarColor: row.avatar_color,
           defaultCurrency: row.default_currency,
+          isDemo,
         }
       : fallback,
     workspaceInitialized: row?.workspace_initialized ?? false,

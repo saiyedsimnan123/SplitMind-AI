@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   clearSessionCookies,
   getRequestSession,
+  isDemoAuthUser,
   parseDeviceSummary,
   revokeSupabaseSession,
 } from "@/lib/supabase/auth";
@@ -23,7 +24,10 @@ export async function POST(request: Request) {
   const session = isSupabaseAuthConfigured() ? await getRequestSession(request) : null;
 
   if (session) {
-    const actorLabel = session.user.user_metadata?.full_name || session.user.email;
+    const isDemo = isDemoAuthUser(session.user);
+    const actorLabel = isDemo
+      ? "Demo Explorer (DEMO)"
+      : session.user.user_metadata?.full_name || session.user.email || "SplitMind Member";
     try {
       await revokeSupabaseSession(session.accessToken, scope);
     } catch (error) {
@@ -47,16 +51,22 @@ export async function POST(request: Request) {
     } else {
       await recordServerAuditEvent({
         category: "authentication",
-        eventType: "auth.logout",
-        eventName: scope === "global" ? "Signed out of all devices" : "Signed out",
+        eventType: isDemo ? "auth.demo.exited" : "auth.logout",
+        eventName: isDemo
+          ? "Demo session ended"
+          : scope === "global"
+            ? "Signed out of all devices"
+            : "Signed out",
         status: "success",
         actorUserId: session.user.id,
         actorLabel,
         description:
-          scope === "global"
-            ? `Revoked all sessions globally and signed out (${deviceLabel}).`
-            : `Signed out of session ${session.sessionId} (${deviceLabel}).`,
-        metadata: { scope, sessionId: session.sessionId },
+          isDemo
+            ? `Exited isolated demo session ${session.sessionId} (${deviceLabel}).`
+            : scope === "global"
+              ? `Revoked all sessions globally and signed out (${deviceLabel}).`
+              : `Signed out of session ${session.sessionId} (${deviceLabel}).`,
+        metadata: { scope, sessionId: session.sessionId, isDemo },
       });
     }
   }

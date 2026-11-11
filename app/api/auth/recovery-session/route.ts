@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   const createdAt = new Date().toISOString();
   const deviceLabel = parseDeviceSummary(request.headers.get("user-agent"));
 
-  let actorLabel = user.user_metadata?.full_name || user.email;
+  let actorLabel = user.user_metadata?.full_name || user.email || "SplitMind Member";
   try {
     const ensured = await ensureUserProfile(accessToken, user);
     actorLabel = ensured.profile.fullName;

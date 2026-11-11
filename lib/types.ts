@@ -129,11 +129,13 @@ export type AuthUser = {
   initials: string;
   avatarColor: string;
   defaultCurrency: CurrencyCode;
+  isDemo?: boolean;
 };
 
 export type SessionSummary = {
   authenticated: boolean;
   authConfigured: boolean;
+  isDemo?: boolean;
   sessionId: string | null;
   provider: string;
   createdAt: string | null;

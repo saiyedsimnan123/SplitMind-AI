@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { SignupForm } from "@/components/auth/SignupForm";
-import { getServerSession } from "@/lib/supabase/auth";
+import { getServerSession, isDemoAuthUser } from "@/lib/supabase/auth";
 import { isSupabaseAuthConfigured } from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export default async function SignupPage() {
   const authConfigured = isSupabaseAuthConfigured();
   if (authConfigured) {
     const session = await getServerSession();
-    if (session) {
+    if (session && !isDemoAuthUser(session.user)) {
       redirect("/");
     }
   }

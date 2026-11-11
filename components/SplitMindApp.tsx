@@ -4,6 +4,7 @@ import {
   ArchiveRestore,
   CheckCircle2,
   FolderPlus,
+  LogOut,
   Plus,
   ShieldAlert,
   ShieldCheck,
@@ -153,6 +154,7 @@ export function SplitMindApp({
   const [screen, setScreen] = useState<Screen>("Overview");
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("account");
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(initialUser);
+  const isDemo = Boolean(initialSession.isDemo || currentUser?.isDemo);
   const [groups, setGroups] = useState<GroupRecord[]>(
     initialGroups.length ? initialGroups : [createInitialGoaGroup()],
   );
@@ -1126,7 +1128,37 @@ export function SplitMindApp({
     }
   };
 
+  const handleSimulateDemoPayment = () => {
+    const valid =
+      /^(?:0|[1-9]\d{0,3})(?:\.\d{1,2})?$/.test(paymentAmount) &&
+      Number(paymentAmount) >= 0.01 &&
+      Number(paymentAmount) <= 9999.99;
+    if (!valid) {
+      setPaymentFeedback({
+        tone: "warning",
+        headline: "Enter a valid demo amount",
+        detail: "Use an amount between $0.01 and $9,999.99 USD to preview the checkout receipt.",
+      });
+      return;
+    }
+
+    const simulatedId = `DEMO-${activeGroup.id.slice(0, 6).toUpperCase()}-${paymentAmount.replace(".", "")}`;
+    setPaymentFeedback({
+      tone: "success",
+      headline: "Demo payment simulated (no real charge)",
+      detail: `Simulated checkout preview for ${activeGroup.name}. Real PayPal Sandbox calls are disabled in DEMO sessions.`,
+      amount: paymentAmount,
+      currency: "USD",
+      captureId: simulatedId,
+    });
+    showToast("success", `Simulated demo payment of $${paymentAmount} USD (no real PayPal transaction).`);
+  };
+
   const createOrder = async () => {
+    if (isDemo) {
+      handleSimulateDemoPayment();
+      return;
+    }
     if (paymentBusy) return;
     setPaymentBusy(true);
     setPaymentFeedback({
@@ -1306,6 +1338,7 @@ export function SplitMindApp({
         }}
         currentUser={currentUser}
         authConfigured={authConfigured}
+        isDemo={isDemo}
         unverifiedCount={summary.unverifiedCount}
         auditCount={auditEvents.filter((e) => e.groupId === activeGroup.id).length}
         mobileOpen={mobileNav}
@@ -1319,6 +1352,7 @@ export function SplitMindApp({
           groupCurrency={activeGroup.currency}
           unverifiedCount={summary.unverifiedCount}
           authConfigured={authConfigured}
+          isDemo={isDemo}
           currentUser={currentUser}
           onOpenMobileNav={() => setMobileNav(true)}
           onOpenExpenses={() => pickScreen("Expenses")}
@@ -1338,6 +1372,28 @@ export function SplitMindApp({
                 <code>SUPABASE_URL</code>, <code>SUPABASE_ANON_KEY</code>, and{" "}
                 <code>SUPABASE_SERVICE_ROLE_KEY</code> to enable server authentication and RLS persistence.
               </span>
+            </div>
+          )}
+
+          {isDemo && (
+            <div className="demo-mode-banner" role="status">
+              <div className="demo-mode-copy">
+                <span className="demo-pill-tag">DEMO</span>
+                <span>
+                  <strong>Explore Demo Mode</strong> — You are exploring an isolated sample workspace seeded
+                  with the Goa Trip 2026 ledger (8 friends, 3 days). Changes stay private to your demo
+                  session and never trigger real payments.
+                </span>
+              </div>
+              <div className="demo-mode-actions">
+                <button
+                  type="button"
+                  className="button button-outline button-sm"
+                  onClick={() => void handleLogout("local")}
+                >
+                  <LogOut size={13} /> Exit Demo / Return to Login
+                </button>
+              </div>
             </div>
           )}
 
@@ -1559,11 +1615,13 @@ export function SplitMindApp({
             <PaymentsView
               groupName={activeGroup.name}
               groupCurrency={activeGroup.currency}
+              isDemo={isDemo}
               paymentAmount={paymentAmount}
               paymentBusy={paymentBusy}
               paymentFeedback={paymentFeedback}
               onChangeAmount={setPaymentAmount}
               onCreateOrder={createOrder}
+              onSimulateDemoPayment={handleSimulateDemoPayment}
             />
           )}
 

@@ -65,6 +65,7 @@ export function Sidebar({
   onOpenCreateGroup,
   currentUser,
   authConfigured,
+  isDemo,
   unverifiedCount,
   auditCount,
   mobileOpen,
@@ -80,12 +81,14 @@ export function Sidebar({
   onOpenCreateGroup: () => void;
   currentUser: AuthUser | null;
   authConfigured: boolean;
+  isDemo?: boolean;
   unverifiedCount: number;
   auditCount: number;
   mobileOpen: boolean;
   onCloseMobile: () => void;
 }) {
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const demoMode = Boolean(isDemo || currentUser?.isDemo);
   const activeGroups = groups.filter((group) => !group.archivedAt);
   const groupIconChar = activeGroup.name.trim()[0]?.toUpperCase() || "G";
 
@@ -267,7 +270,8 @@ export function Sidebar({
               <Sparkles size={14} />
             </span>
             <span className="upgrade-pill">
-              <ShieldCheck size={12} /> {authConfigured ? "RLS Verified" : "Protected"}
+              <ShieldCheck size={12} />{" "}
+              {demoMode ? "DEMO Session" : authConfigured ? "RLS Verified" : "Protected"}
             </span>
           </div>
           <strong>Smart Money Mind</strong>
@@ -284,8 +288,8 @@ export function Sidebar({
         <button type="button" className="profile-button" onClick={() => onSelectScreen("Settings")}>
           <span className="profile-avatar">{currentUser?.initials ?? "SM"}</span>
           <span className="profile-meta">
-            <strong>{currentUser?.fullName ?? "Account"}</strong>
-            <small>{currentUser?.email ?? "Workspace member"}</small>
+            <strong>{demoMode ? "Demo Explorer (DEMO)" : (currentUser?.fullName ?? "Account")}</strong>
+            <small>{demoMode ? "Sample workspace · Isolated" : (currentUser?.email || "Workspace member")}</small>
           </span>
           <MoreHorizontal size={17} />
         </button>

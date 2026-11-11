@@ -299,4 +299,58 @@ describe("Route protection, group isolation, permissions, and audit immutability
     expect(warnings.length).toBe(3);
     expect(warnings.every((w) => w.event_type === "security.warning")).toBe(true);
   });
+
+  it("isolates anonymous demo user sessions from other users' groups", async () => {
+    setTestSupabaseEnv();
+    let queriedGroupUrl = "";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/auth/v1/user")) {
+          return Response.json({
+            id: "demo-user-abc",
+            is_anonymous: true,
+            email: "",
+            app_metadata: { provider: "anonymous" },
+            user_metadata: { full_name: "Demo Explorer", is_demo: true },
+          });
+        }
+        if (url.includes("/rest/v1/profiles")) {
+          return Response.json([
+            {
+              id: "demo-user-abc",
+              email: "",
+              full_name: "Demo Explorer",
+              initials: "DM",
+              avatar_color: "teal",
+              default_currency: "INR",
+              workspace_initialized: true,
+            },
+          ]);
+        }
+        if (url.includes("/rest/v1/groups?id=eq.foreign-user-group")) {
+          queriedGroupUrl = url;
+          return Response.json([]);
+        }
+        return Response.json([]);
+      }),
+    );
+
+    const foreignPatch = await groupPatch(
+      new Request("http://localhost:3000/api/groups/foreign-user-group", {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          cookie: "sm_access_token=demo-jwt; sm_session_id=sess_demo",
+        },
+        body: JSON.stringify({ name: "Tampered" }),
+      }),
+      { params: Promise.resolve({ groupId: "foreign-user-group" }) },
+    );
+
+    expect(foreignPatch.status).toBe(403);
+    expect(queriedGroupUrl).toContain("foreign-user-group");
+  });
 });

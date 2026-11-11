@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   applySessionCookies,
   getRequestSession,
+  isDemoAuthUser,
   type VerifiedServerSession,
 } from "@/lib/supabase/auth";
 import { isSupabaseAuthConfigured } from "@/lib/supabase/config";
@@ -35,13 +36,15 @@ export async function authenticateApiRequest(request: Request): Promise<
     const ensured = await ensureUserProfile(session.accessToken, session.user);
     profile = ensured.profile;
   } catch {
+    const isDemo = isDemoAuthUser(session.user);
     profile = {
       id: session.user.id,
-      email: session.user.email,
-      fullName: session.user.user_metadata?.full_name || session.user.email,
-      initials: "SM",
+      email: session.user.email ?? "",
+      fullName: session.user.user_metadata?.full_name || (isDemo ? "Demo Explorer" : session.user.email || "Member"),
+      initials: isDemo ? "DM" : "SM",
       avatarColor: "coral",
       defaultCurrency: "INR",
+      isDemo,
     };
   }
 

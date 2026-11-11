@@ -15,16 +15,28 @@ export { ACCESS_COOKIE, REFRESH_COOKIE, SESSION_CREATED_COOKIE, SESSION_ID_COOKI
 
 export type SupabaseAuthUser = {
   id: string;
-  email: string;
+  email?: string | null;
+  is_anonymous?: boolean;
+  app_metadata?: {
+    provider?: string;
+    providers?: string[];
+  };
   user_metadata?: {
     full_name?: string;
     avatar_color?: string;
     default_currency?: string;
+    is_demo?: boolean;
   };
+  identities?: unknown[];
   email_confirmed_at?: string | null;
   created_at?: string;
   last_sign_in_at?: string | null;
 };
+
+export function isDemoAuthUser(user: SupabaseAuthUser | null | undefined): boolean {
+  if (!user) return false;
+  return user.is_anonymous === true || user.app_metadata?.provider === "anonymous";
+}
 
 export type SupabaseSessionTokens = {
   access_token: string;
@@ -228,6 +240,7 @@ export async function signUpWithSupabase(input: {
     user?: SupabaseAuthUser;
     id?: string;
     email?: string;
+    identities?: unknown[];
   };
   if (!response.ok) {
     throw new Error(parseSupabaseError(data, "Could not create your account."));
@@ -235,11 +248,17 @@ export async function signUpWithSupabase(input: {
   const user: SupabaseAuthUser | null =
     data.user ??
     (typeof data.id === "string"
-      ? { id: data.id, email: data.email ?? input.email, user_metadata: { full_name: input.fullName } }
+      ? {
+          id: data.id,
+          email: data.email ?? input.email,
+          identities: data.identities,
+          user_metadata: { full_name: input.fullName },
+        }
       : null);
 
   return {
     user,
+    duplicateUser: Array.isArray(user?.identities) && user.identities.length === 0,
     session:
       data.access_token && data.refresh_token && user
         ? {
@@ -250,6 +269,73 @@ export async function signUpWithSupabase(input: {
           }
         : null,
   };
+}
+
+export async function verifySignupOtpWithSupabase(
+  email: string,
+  token: string,
+): Promise<SupabaseSessionTokens> {
+  if (!isSupabaseAuthConfigured()) {
+    throw new Error("Supabase Auth is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY.");
+  }
+  const url = getSupabaseUrl();
+  const response = await fetch(`${url}/auth/v1/verify`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ type: "signup", email, token }),
+    signal: AbortSignal.timeout(12000),
+  });
+  const data = (await response.json().catch(() => ({}))) as Partial<SupabaseSessionTokens>;
+  if (!response.ok || !data.access_token || !data.refresh_token || !data.user) {
+    throw new Error(parseSupabaseError(data, "The verification code is invalid or has expired."));
+  }
+  return data as SupabaseSessionTokens;
+}
+
+export async function resendSignupOtpWithSupabase(email: string): Promise<void> {
+  if (!isSupabaseAuthConfigured()) {
+    throw new Error("Supabase Auth is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY.");
+  }
+  const url = getSupabaseUrl();
+  const response = await fetch(`${url}/auth/v1/resend`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ type: "signup", email }),
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(parseSupabaseError(data, "Could not resend the verification code."));
+  }
+}
+
+export async function signInAnonymouslyForDemo(): Promise<SupabaseSessionTokens> {
+  if (!isSupabaseAuthConfigured()) {
+    throw new Error("Supabase Auth is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY.");
+  }
+  const url = getSupabaseUrl();
+  const response = await fetch(`${url}/auth/v1/signup`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      data: {
+        full_name: "Demo Explorer",
+        is_demo: true,
+      },
+    }),
+    signal: AbortSignal.timeout(12000),
+  });
+  const data = (await response.json().catch(() => ({}))) as Partial<SupabaseSessionTokens>;
+  if (!response.ok || !data.access_token || !data.refresh_token || !data.user) {
+    const msg = parseSupabaseError(data, "Anonymous demo sessions are not available.");
+    if (/anonymous/i.test(msg) && /disabled/i.test(msg)) {
+      throw new Error(
+        "Anonymous sign-ins are disabled in Supabase. Enable Authentication → Providers → Anonymous Sign-Ins in the Supabase Dashboard.",
+      );
+    }
+    throw new Error(msg);
+  }
+  return data as SupabaseSessionTokens;
 }
 
 export async function signInWithSupabase(email: string, password: string): Promise<SupabaseSessionTokens> {

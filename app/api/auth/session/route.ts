@@ -3,6 +3,7 @@ import {
   applySessionCookies,
   clearSessionCookies,
   getRequestSession,
+  isDemoAuthUser,
   parseDeviceSummary,
 } from "@/lib/supabase/auth";
 import { isSupabaseAuthConfigured } from "@/lib/supabase/config";
@@ -57,15 +58,18 @@ export async function GET(request: Request) {
     // Use auth metadata fallback if profile table isn't migrated yet.
   }
 
+  const isDemo = isDemoAuthUser(session.user);
   const res = NextResponse.json({
     authConfigured: true,
     authenticated: true,
+    isDemo,
     user: profile,
     session: {
       authenticated: true,
       authConfigured: true,
+      isDemo,
       sessionId: session.sessionId,
-      provider: "Supabase Auth · HttpOnly session",
+      provider: isDemo ? "Supabase Anonymous Auth · Isolated Demo" : "Supabase Auth · HttpOnly session",
       createdAt: session.sessionCreatedAt,
       deviceLabel,
       storageMode: "supabase_http_only",
