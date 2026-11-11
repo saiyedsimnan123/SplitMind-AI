@@ -2,36 +2,41 @@
 
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
-  CheckCircle2,
   Eye,
   EyeOff,
   Loader2,
-  MailCheck,
-  RefreshCw,
-  ShieldCheck,
+  Mail,
+  MessageSquareCode,
+  Phone,
   UserPlus,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { GoogleContinueButton } from "@/components/auth/GoogleContinueButton";
+import { OtpVerificationPanel } from "@/components/auth/OtpVerificationPanel";
+import { PhoneInputField } from "@/components/auth/PhoneInputField";
+import { DEFAULT_COUNTRY_DIAL_CODE, validateAndFormatPhone } from "@/lib/phone";
 
 export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
   const router = useRouter();
-  const [step, setStep] = useState<"form" | "otp">("form");
+  const [channel, setChannel] = useState<"email" | "phone">("email");
+  const [otpStep, setOtpStep] = useState<null | "email" | "phone">(null);
+
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const [otpDigits, setOtpDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY_DIAL_CODE);
+  const [localNumber, setLocalNumber] = useState("");
+  const [verifiedPhoneE164, setVerifiedPhoneE164] = useState("");
+
   const [cooldown, setCooldown] = useState(0);
   const [busy, setBusy] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
   const [otpInfo, setOtpInfo] = useState("");
   const [verifiedSuccess, setVerifiedSuccess] = useState(false);
-
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -41,13 +46,14 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
     return () => window.clearInterval(timer);
   }, [cooldown]);
 
-  useEffect(() => {
-    if (step === "otp") {
-      inputRefs.current[0]?.focus();
-    }
-  }, [step]);
+  const switchChannel = (nextChannel: "email" | "phone") => {
+    setChannel(nextChannel);
+    setOtpStep(null);
+    setError("");
+    setOtpInfo("");
+  };
 
-  const submitSignup = async (event: React.FormEvent) => {
+  const submitEmailSignup = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
     setOtpInfo("");
@@ -93,10 +99,9 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
 
       if (data.requiresOtpVerification || data.requiresEmailConfirmation) {
         setEmail(trimmedEmail);
-        setOtpDigits(["", "", "", "", "", ""]);
         setCooldown(data.cooldownSeconds ?? 60);
         setOtpInfo(data.message ?? "Enter the 6-digit verification code sent to your email.");
-        setStep("otp");
+        setOtpStep("email");
         setBusy(false);
         return;
       }
@@ -109,8 +114,7 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
     }
   };
 
-  const verifyOtpCode = async (codeOverride?: string) => {
-    const code = codeOverride ?? otpDigits.join("");
+  const verifyEmailOtpCode = async (code: string) => {
     if (!/^\d{6}$/.test(code)) {
       setError("Enter the complete 6-digit verification code.");
       return;
@@ -122,7 +126,7 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
       const response = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), token: code }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), token: code, mode: "signup" }),
       });
       const data = (await response.json()) as { error?: string };
       if (!response.ok) {
@@ -141,73 +145,7 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
     }
   };
 
-  const handleDigitChange = (index: number, raw: string) => {
-    const cleaned = raw.replace(/\D/g, "");
-    setError("");
-    if (!cleaned) {
-      const next = [...otpDigits];
-      next[index] = "";
-      setOtpDigits(next);
-      return;
-    }
-    if (cleaned.length > 1) {
-      const chars = cleaned.slice(0, 6).split("");
-      const next = ["", "", "", "", "", ""];
-      for (let i = 0; i < chars.length; i++) next[i] = chars[i];
-      setOtpDigits(next);
-      const focusIdx = Math.min(chars.length, 5);
-      inputRefs.current[focusIdx]?.focus();
-      if (chars.length === 6) {
-        void verifyOtpCode(next.join(""));
-      }
-      return;
-    }
-
-    const next = [...otpDigits];
-    next[index] = cleaned;
-    setOtpDigits(next);
-    if (index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleDigitKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Backspace") {
-      if (otpDigits[index]) {
-        const next = [...otpDigits];
-        next[index] = "";
-        setOtpDigits(next);
-      } else if (index > 0) {
-        const next = [...otpDigits];
-        next[index - 1] = "";
-        setOtpDigits(next);
-        inputRefs.current[index - 1]?.focus();
-      }
-    } else if (event.key === "ArrowLeft" && index > 0) {
-      event.preventDefault();
-      inputRefs.current[index - 1]?.focus();
-    } else if (event.key === "ArrowRight" && index < 5) {
-      event.preventDefault();
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handlePasteOtp = (event: React.ClipboardEvent<HTMLInputElement>) => {
-    event.preventDefault();
-    const pasted = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (!pasted) return;
-    const next = ["", "", "", "", "", ""];
-    for (let i = 0; i < pasted.length; i++) next[i] = pasted[i];
-    setOtpDigits(next);
-    setError("");
-    const focusIdx = Math.min(pasted.length, 5);
-    inputRefs.current[focusIdx]?.focus();
-    if (pasted.length === 6) {
-      void verifyOtpCode(next.join(""));
-    }
-  };
-
-  const handleResendOtp = async () => {
+  const resendEmailOtp = async () => {
     if (cooldown > 0 || resending || busy) return;
     setError("");
     setResending(true);
@@ -215,7 +153,7 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
       const response = await fetch("/api/auth/resend-otp", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), mode: "signup" }),
       });
       const data = (await response.json()) as {
         error?: string;
@@ -229,8 +167,6 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
       } else {
         setCooldown(data.cooldownSeconds ?? 60);
         setOtpInfo(data.message ?? "A fresh 6-digit verification code has been sent.");
-        setOtpDigits(["", "", "", "", "", ""]);
-        inputRefs.current[0]?.focus();
       }
     } catch {
       setError("Network error while resending code. Please try again.");
@@ -239,196 +175,288 @@ export function SignupForm({ authConfigured }: { authConfigured: boolean }) {
     }
   };
 
-  if (verifiedSuccess) {
-    return (
-      <div className="payment-banner payment-banner-success" role="status">
-        <div className="payment-banner-icon">
-          <CheckCircle2 size={18} />
-        </div>
-        <div className="payment-banner-copy">
-          <strong>Email verified</strong>
-          <p>Your SplitMind workspace is ready. Redirecting to dashboard…</p>
-        </div>
-      </div>
-    );
-  }
+  const submitPhoneSignup = async (event?: React.FormEvent) => {
+    event?.preventDefault();
+    setError("");
+    setOtpInfo("");
 
-  if (step === "otp") {
-    const codeComplete = otpDigits.every((d) => /^\d$/.test(d));
-    return (
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void verifyOtpCode();
-        }}
-        noValidate
-      >
-        <div className="otp-recipient-card">
-          <span className="otp-mail-icon">
-            <MailCheck size={18} />
-          </span>
-          <div>
-            <strong>6-digit code sent to</strong>
-            <span>{email}</span>
-          </div>
-          <button
-            type="button"
-            className="otp-change-email"
-            disabled={busy}
-            onClick={() => {
-              setStep("form");
-              setError("");
-              setOtpInfo("");
-            }}
-          >
-            <ArrowLeft size={12} /> Change email
-          </button>
-        </div>
+    const trimmedName = fullName.trim();
+    if (otpStep !== "phone" && (!trimmedName || trimmedName.length > 80)) {
+      setError("Enter your full name (under 80 characters).");
+      return;
+    }
 
-        {otpInfo && !error && (
-          <p className="otp-helper-note" role="status">
-            {otpInfo}
-          </p>
-        )}
+    const check = validateAndFormatPhone(countryCode, localNumber);
+    if (!check.ok) {
+      setError(check.error);
+      return;
+    }
 
-        <div className="otp-box-group" role="group" aria-label="6-digit email verification code">
-          {otpDigits.map((digit, index) => (
-            <input
-              key={index}
-              ref={(el) => {
-                inputRefs.current[index] = el;
-              }}
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={6}
-              autoComplete={index === 0 ? "one-time-code" : "off"}
-              aria-label={`Verification digit ${index + 1} of 6`}
-              className={`otp-digit-input ${digit ? "filled" : ""} ${error ? "has-error" : ""}`}
-              value={digit}
-              onChange={(e) => handleDigitChange(index, e.target.value)}
-              onKeyDown={(e) => handleDigitKeyDown(index, e)}
-              onPaste={handlePasteOtp}
-              disabled={busy}
-            />
-          ))}
-        </div>
+    if (otpStep === "phone") {
+      setResending(true);
+    } else {
+      setBusy(true);
+    }
 
-        {error && (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        )}
+    try {
+      const response = await fetch("/api/auth/phone/send-otp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          countryCode,
+          localNumber,
+          fullName: trimmedName || undefined,
+          mode: "signup",
+        }),
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        phone?: string;
+        cooldownSeconds?: number;
+        retryAfterSeconds?: number;
+        message?: string;
+      };
+      if (!response.ok) {
+        if (data.retryAfterSeconds) setCooldown(data.retryAfterSeconds);
+        setError(data.error ?? "Could not send SMS verification code.");
+      } else {
+        setVerifiedPhoneE164(data.phone ?? check.e164);
+        setCooldown(data.cooldownSeconds ?? 60);
+        setOtpInfo(data.message ?? `Enter the 6-digit SMS code sent to ${check.e164}.`);
+        setOtpStep("phone");
+      }
+    } catch {
+      setError("Network error while sending SMS OTP. Please try again.");
+    } finally {
+      setBusy(false);
+      setResending(false);
+    }
+  };
 
-        <button
-          type="submit"
-          className="button button-primary full-button"
-          disabled={busy || !codeComplete}
-        >
-          {busy ? <Loader2 size={15} className="spin" /> : <ShieldCheck size={15} />}
-          {busy ? "Verifying 6-digit code..." : "Verify & enter workspace"}
-        </button>
-
-        <div className="otp-resend-row">
-          <span>Didn&apos;t receive the code?</span>
-          <button
-            type="button"
-            className="otp-resend-btn"
-            disabled={cooldown > 0 || resending || busy}
-            onClick={() => void handleResendOtp()}
-          >
-            {resending ? (
-              <>
-                <Loader2 size={12} className="spin" /> Sending...
-              </>
-            ) : cooldown > 0 ? (
-              `Resend OTP in ${cooldown}s`
-            ) : (
-              <>
-                <RefreshCw size={12} /> Resend OTP
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-    );
-  }
+  const verifyPhoneSignupOtp = async (code: string) => {
+    if (!/^\d{6}$/.test(code)) {
+      setError("Enter the complete 6-digit SMS verification code.");
+      return;
+    }
+    setError("");
+    setBusy(true);
+    try {
+      const response = await fetch("/api/auth/phone/verify-otp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          phone: verifiedPhoneE164,
+          token: code,
+        }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setError(data.error ?? "Invalid or expired SMS code.");
+        setBusy(false);
+        return;
+      }
+      setVerifiedSuccess(true);
+      setTimeout(() => {
+        router.push("/");
+        router.refresh();
+      }, 650);
+    } catch {
+      setError("Network error while verifying SMS code. Please try again.");
+      setBusy(false);
+    }
+  };
 
   return (
-    <form onSubmit={submitSignup} noValidate>
-      <label className="form-label">
-        Full name
-        <input
-          type="text"
-          autoComplete="name"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          placeholder="e.g. Alex Kim"
-          disabled={busy}
-          required
-        />
-      </label>
-
-      <label className="form-label">
-        Email address
-        <input
-          type="email"
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@company.com"
-          disabled={busy}
-          required
-        />
-      </label>
-
-      <label className="form-label">
-        Password
-        <div className="password-field">
-          <input
-            type={showPassword ? "text" : "password"}
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Minimum 8 characters"
+    <div>
+      {!otpStep && (
+        <>
+          <GoogleContinueButton
+            authConfigured={authConfigured}
             disabled={busy}
-            required
+            label="Continue with Google"
           />
-          <button
-            type="button"
-            className="icon-button password-toggle"
-            onClick={() => setShowPassword((v) => !v)}
-            aria-label={showPassword ? "Hide password" : "Show password"}
-          >
-            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
-        </div>
-        <small>Minimum 8 characters. We&apos;ll send a 6-digit OTP to verify your email.</small>
-      </label>
 
-      <label className="form-label">
-        Confirm password
-        <input
-          type={showPassword ? "text" : "password"}
-          autoComplete="new-password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          placeholder="Re-enter your password"
-          disabled={busy}
-          required
-        />
-      </label>
+          <div className="auth-divider" role="separator">
+            <span>or create account with</span>
+          </div>
 
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
+          <div className="auth-channel-toggle" role="tablist" aria-label="Registration method">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={channel === "email"}
+              className={`auth-channel-btn ${channel === "email" ? "active" : ""}`}
+              onClick={() => switchChannel("email")}
+              disabled={busy}
+            >
+              <Mail size={14} /> Sign up with Email
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={channel === "phone"}
+              className={`auth-channel-btn ${channel === "phone" ? "active" : ""}`}
+              onClick={() => switchChannel("phone")}
+              disabled={busy}
+            >
+              <Phone size={14} /> Sign up with Phone
+            </button>
+          </div>
+        </>
       )}
 
-      <button type="submit" className="button button-primary full-button" disabled={busy || !authConfigured}>
-        {busy ? <Loader2 size={15} className="spin" /> : <UserPlus size={15} />}
-        {busy ? "Sending verification code..." : "Create Account"}
-      </button>
-    </form>
+      {otpStep === "email" ? (
+        <OtpVerificationPanel
+          channel="email"
+          targetLabel={email}
+          changeLabel="Change email"
+          helperInfo={otpInfo}
+          error={error}
+          busy={busy}
+          resending={resending}
+          cooldown={cooldown}
+          verifiedSuccess={verifiedSuccess}
+          successTitle="Email verified"
+          successSubtitle="Your SplitMind workspace is ready. Redirecting to dashboard…"
+          onClearError={() => setError("")}
+          onBack={() => {
+            setOtpStep(null);
+            setError("");
+            setOtpInfo("");
+          }}
+          onVerify={verifyEmailOtpCode}
+          onResend={resendEmailOtp}
+        />
+      ) : otpStep === "phone" ? (
+        <OtpVerificationPanel
+          channel="phone"
+          targetLabel={verifiedPhoneE164}
+          changeLabel="Change phone"
+          helperInfo={otpInfo}
+          error={error}
+          busy={busy}
+          resending={resending}
+          cooldown={cooldown}
+          verifiedSuccess={verifiedSuccess}
+          successTitle="Phone number verified"
+          successSubtitle="Your SplitMind workspace is ready. Redirecting to dashboard…"
+          onClearError={() => setError("")}
+          onBack={() => {
+            setOtpStep(null);
+            setError("");
+            setOtpInfo("");
+          }}
+          onVerify={verifyPhoneSignupOtp}
+          onResend={() => submitPhoneSignup()}
+        />
+      ) : channel === "email" ? (
+        <form onSubmit={submitEmailSignup} noValidate>
+          <label className="form-label">
+            Full name
+            <input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="e.g. Aarav Patel"
+              autoComplete="name"
+              disabled={busy}
+              required
+            />
+          </label>
+
+          <label className="form-label">
+            Work or personal email
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              autoComplete="email"
+              disabled={busy}
+              required
+            />
+          </label>
+
+          <label className="form-label">
+            Password
+            <div className="password-field">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimum 8 characters"
+                autoComplete="new-password"
+                disabled={busy}
+                required
+              />
+              <button
+                type="button"
+                className="icon-button password-toggle"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </label>
+
+          <label className="form-label">
+            Confirm password
+            <input
+              type={showPassword ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter your password"
+              autoComplete="new-password"
+              disabled={busy}
+              required
+            />
+          </label>
+
+          {error && (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          )}
+
+          <button type="submit" className="button button-primary full-button" disabled={busy || !authConfigured}>
+            {busy ? <Loader2 size={15} className="spin" /> : <UserPlus size={15} />}
+            {busy ? "Sending verification code..." : "Create account & send Email OTP"}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={(e) => void submitPhoneSignup(e)} noValidate>
+          <label className="form-label">
+            Full name
+            <input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="e.g. Aarav Patel"
+              autoComplete="name"
+              disabled={busy}
+              required
+            />
+          </label>
+
+          <PhoneInputField
+            countryCode={countryCode}
+            localNumber={localNumber}
+            disabled={busy}
+            onChangeCountryCode={setCountryCode}
+            onChangeLocalNumber={setLocalNumber}
+          />
+
+          {error && (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          )}
+
+          <button type="submit" className="button button-primary full-button" disabled={busy || !authConfigured}>
+            {busy ? <Loader2 size={15} className="spin" /> : <MessageSquareCode size={15} />}
+            {busy ? "Sending SMS OTP..." : "Create account & send SMS OTP"}
+          </button>
+        </form>
+      )}
+    </div>
   );
 }

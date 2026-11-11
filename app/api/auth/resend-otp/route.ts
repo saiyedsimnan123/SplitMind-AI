@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { maskEmailForAudit } from "@/lib/audit";
-import { parseDeviceSummary, resendSignupOtpWithSupabase } from "@/lib/supabase/auth";
+import {
+  parseDeviceSummary,
+  resendSignupOtpWithSupabase,
+  sendEmailOtpWithSupabase,
+} from "@/lib/supabase/auth";
 import { isSupabaseAuthConfigured } from "@/lib/supabase/config";
 import { recordServerAuditEvent } from "@/lib/supabase/db";
 import {
@@ -17,14 +21,15 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { email?: unknown };
+  let body: { email?: unknown; mode?: unknown };
   try {
-    body = (await request.json()) as { email?: unknown };
+    body = (await request.json()) as { email?: unknown; mode?: unknown };
   } catch {
     return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
   }
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const mode = body.mode === "login" ? "login" : "signup";
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }
@@ -47,18 +52,22 @@ export async function POST(request: Request) {
   }
 
   try {
-    await resendSignupOtpWithSupabase(email);
+    if (mode === "login") {
+      await sendEmailOtpWithSupabase(email, { createUser: false });
+    } else {
+      await resendSignupOtpWithSupabase(email);
+    }
     recordOtpResendAttempt(email, clientIp);
 
     await recordServerAuditEvent({
       category: "authentication",
       eventType: "auth.otp.resent",
-      eventName: "Signup OTP resent",
+      eventName: mode === "login" ? "Login email OTP resent" : "Signup OTP resent",
       status: "info",
       actorUserId: null,
       actorLabel: maskEmailForAudit(email),
-      description: `Resent 6-digit signup verification code to ${maskEmailForAudit(email)} (${deviceLabel}).`,
-      metadata: { device: deviceLabel },
+      description: `Resent 6-digit ${mode} email verification code to ${maskEmailForAudit(email)} (${deviceLabel}).`,
+      metadata: { device: deviceLabel, mode },
     });
 
     return NextResponse.json({

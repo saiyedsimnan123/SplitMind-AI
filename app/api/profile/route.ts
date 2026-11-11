@@ -71,6 +71,12 @@ export async function PATCH(request: Request) {
 
   // Handle password change cleanly by verifying currentPassword first
   if (typeof body.newPassword === "string" && body.newPassword.length > 0) {
+    if (!session.user.email) {
+      return NextResponse.json(
+        { error: "Password credentials are only available for email-authenticated accounts." },
+        { status: 400 },
+      );
+    }
     if (typeof body.currentPassword !== "string" || !body.currentPassword) {
       return NextResponse.json({ error: "Enter your current password to set a new one." }, { status: 400 });
     }

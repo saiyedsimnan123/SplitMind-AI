@@ -289,7 +289,11 @@ export function Sidebar({
           <span className="profile-avatar">{currentUser?.initials ?? "SM"}</span>
           <span className="profile-meta">
             <strong>{demoMode ? "Demo Explorer (DEMO)" : (currentUser?.fullName ?? "Account")}</strong>
-            <small>{demoMode ? "Sample workspace · Isolated" : (currentUser?.email || "Workspace member")}</small>
+            <small>
+              {demoMode
+                ? "Sample workspace · Isolated"
+                : currentUser?.email || currentUser?.phone || "Workspace member"}
+            </small>
           </span>
           <MoreHorizontal size={17} />
         </button>

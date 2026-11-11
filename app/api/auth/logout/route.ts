@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   clearSessionCookies,
+  getAuthUserDisplayName,
   getRequestSession,
   isDemoAuthUser,
   parseDeviceSummary,
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     const isDemo = isDemoAuthUser(session.user);
     const actorLabel = isDemo
       ? "Demo Explorer (DEMO)"
-      : session.user.user_metadata?.full_name || session.user.email || "SplitMind Member";
+      : getAuthUserDisplayName(session.user);
     try {
       await revokeSupabaseSession(session.accessToken, scope);
     } catch (error) {

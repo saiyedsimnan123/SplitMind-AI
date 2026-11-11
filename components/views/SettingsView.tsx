@@ -204,12 +204,46 @@ export function SettingsView({
               </div>
             ) : authConfigured && currentUser ? (
               <form onSubmit={submitProfile} style={{ marginTop: 14 }}>
+                {currentUser.email && (
+                  <div className="settings-row">
+                    <div>
+                      <strong>Email address</strong>
+                      <small>
+                        {currentUser.authProvider === "google"
+                          ? "Verified Google OAuth email"
+                          : "Verified Supabase Auth identity"}
+                      </small>
+                    </div>
+                    <input value={currentUser.email} readOnly aria-label="Email address" />
+                  </div>
+                )}
+
+                {currentUser.phone && (
+                  <div className="settings-row">
+                    <div>
+                      <strong>Phone number</strong>
+                      <small>Verified via SMS OTP (Supabase Phone Auth)</small>
+                    </div>
+                    <input value={currentUser.phone} readOnly aria-label="Phone number" />
+                  </div>
+                )}
+
                 <div className="settings-row">
                   <div>
-                    <strong>Email address</strong>
-                    <small>Verified Supabase Auth identity</small>
+                    <strong>Authentication method</strong>
+                    <small>Active identity provider linked to your SplitMind profile</small>
                   </div>
-                  <input value={currentUser.email} readOnly aria-label="Email address" />
+                  <input
+                    value={
+                      currentUser.authProvider === "google"
+                        ? "Google OAuth (PKCE)"
+                        : currentUser.authProvider === "phone" || (!currentUser.email && currentUser.phone)
+                          ? "Phone OTP (SMS)"
+                          : "Email & OTP"
+                    }
+                    readOnly
+                    aria-label="Authentication method"
+                  />
                 </div>
 
                 <div className="settings-row">
@@ -277,7 +311,12 @@ export function SettingsView({
             )}
           </section>
 
-          {authConfigured && currentUser && !isDemoAccount && (
+          {authConfigured &&
+            currentUser &&
+            !isDemoAccount &&
+            Boolean(currentUser.email) &&
+            currentUser.authProvider !== "google" &&
+            currentUser.authProvider !== "phone" && (
             <section className="panel settings-panel">
               <div className="section-kicker">CREDENTIALS</div>
               <h2>Change password</h2>

@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { GET as oauthCallbackGet } from "@/app/api/auth/callback/route";
 import { POST as demoPost } from "@/app/api/auth/demo/route";
+import { POST as emailOtpSendPost } from "@/app/api/auth/email-otp/send/route";
 import { POST as forgotPasswordPost } from "@/app/api/auth/forgot-password/route";
 import { POST as loginPost } from "@/app/api/auth/login/route";
 import { POST as logoutPost } from "@/app/api/auth/logout/route";
+import { GET as googleOAuthGet } from "@/app/api/auth/oauth/google/route";
+import { POST as phoneSendOtpPost } from "@/app/api/auth/phone/send-otp/route";
+import { POST as phoneVerifyOtpPost } from "@/app/api/auth/phone/verify-otp/route";
 import { POST as resendOtpPost } from "@/app/api/auth/resend-otp/route";
 import { POST as resetPasswordPost } from "@/app/api/auth/reset-password/route";
 import { GET as sessionGet } from "@/app/api/auth/session/route";
@@ -688,5 +693,387 @@ describe("Supabase authentication and session handling", () => {
     );
     expect(logoutRes.status).toBe(200);
     expect(auditPayloads.some((e) => e.event_type === "auth.demo.exited")).toBe(true);
+  });
+
+  it("supports passwordless Email OTP login with cooldown and HttpOnly session verification", async () => {
+    setTestSupabaseEnv();
+    const calls: { url: string; body: Record<string, unknown> }[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const parsedBody = init?.body
+          ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+          : {};
+        calls.push({ url, body: parsedBody });
+        if (url.includes("/auth/v1/otp")) {
+          return Response.json({});
+        }
+        if (url.includes("/auth/v1/verify")) {
+          return Response.json({
+            access_token: "email-otp-access.eyJzZXNzaW9uX2lkIjoic2VzLWVvdHAifQ.sig",
+            refresh_token: "email-otp-refresh",
+            expires_in: 3600,
+            user: {
+              id: "user-email-otp",
+              email: "meera@example.com",
+              user_metadata: { full_name: "Meera Rao" },
+            },
+          });
+        }
+        if (url.includes("/rest/v1/profiles")) {
+          return Response.json([
+            {
+              id: "user-email-otp",
+              email: "meera@example.com",
+              full_name: "Meera Rao",
+              initials: "MR",
+              avatar_color: "teal",
+              default_currency: "INR",
+              workspace_initialized: true,
+            },
+          ]);
+        }
+        if (url.includes("/rest/v1/security_audit_events")) {
+          return new Response(null, { status: 201 });
+        }
+        return Response.json([]);
+      }),
+    );
+
+    const sendRes = await emailOtpSendPost(
+      new Request("http://localhost:3000/api/auth/email-otp/send", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.1.0.1" },
+        body: JSON.stringify({ email: "meera@example.com" }),
+      }),
+    );
+    expect(sendRes.status).toBe(200);
+    expect(sendRes.headers.get("set-cookie")).toBeNull();
+    const otpReq = calls.find((c) => c.url.includes("/auth/v1/otp"));
+    expect(otpReq?.body).toMatchObject({ email: "meera@example.com", create_user: false });
+
+    const cooldownRes = await resendOtpPost(
+      new Request("http://localhost:3000/api/auth/resend-otp", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.1.0.1" },
+        body: JSON.stringify({ email: "meera@example.com", mode: "login" }),
+      }),
+    );
+    expect(cooldownRes.status).toBe(429);
+
+    const verifyRes = await verifyOtpPost(
+      new Request("http://localhost:3000/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.1.0.1" },
+        body: JSON.stringify({ email: "meera@example.com", token: "741852", mode: "login" }),
+      }),
+    );
+    expect(verifyRes.status).toBe(200);
+    const verifyCall = calls.find((c) => c.url.includes("/auth/v1/verify"));
+    expect(verifyCall?.body).toMatchObject({
+      type: "email",
+      email: "meera@example.com",
+      token: "741852",
+    });
+    expect(verifyRes.headers.get("set-cookie")).toContain("sm_access_token=email-otp-access.");
+    expect(verifyRes.headers.get("set-cookie")).toContain("HttpOnly");
+  });
+
+  it("supports Phone OTP (+91 default & Twilio/Supabase), handles errors/expiry, and rate-limits brute force", async () => {
+    setTestSupabaseEnv();
+    let verifyAttempts = 0;
+    const auditPayloads: Record<string, unknown>[] = [];
+    const profileQueries: string[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+        if (url.includes("/auth/v1/otp")) {
+          if (body.phone === "+919999900000") {
+            return Response.json({ msg: "Phone provider is disabled" }, { status: 422 });
+          }
+          return Response.json({});
+        }
+        if (url.includes("/auth/v1/verify")) {
+          verifyAttempts += 1;
+          if (body.phone === "+919876543210" && body.token === "654321") {
+            return Response.json({
+              access_token: "phone-jwt.eyJzZXNzaW9uX2lkIjoic2VzLXBob25lIn0.sig",
+              refresh_token: "phone-refresh",
+              expires_in: 3600,
+              user: {
+                id: "phone-user-1",
+                email: "",
+                phone: "919876543210",
+                app_metadata: { provider: "phone" },
+                user_metadata: { full_name: "Rohan Verma" },
+              },
+            });
+          }
+          if (body.phone === "+919876543211") {
+            return Response.json({ error_description: "Token has expired" }, { status: 403 });
+          }
+          return Response.json({ error_description: "Invalid otp" }, { status: 400 });
+        }
+        if (url.includes("/rest/v1/profiles")) {
+          profileQueries.push(url);
+          if (!init?.method || init.method === "GET") {
+            return Response.json([]);
+          }
+          return Response.json([
+            {
+              id: "phone-user-1",
+              email: "",
+              full_name: "Rohan Verma",
+              initials: "RV",
+              avatar_color: "coral",
+              default_currency: "INR",
+              workspace_initialized: false,
+            },
+          ]);
+        }
+        if (url.includes("/rest/v1/security_audit_events")) {
+          auditPayloads.push(body);
+          return new Response(null, { status: 201 });
+        }
+        return Response.json([]);
+      }),
+    );
+
+    // 1. Never simulates SMS delivery if Supabase Phone Auth returns an error
+    const disabledRes = await phoneSendOtpPost(
+      new Request("http://localhost:3000/api/auth/phone/send-otp", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.2.0.1" },
+        body: JSON.stringify({ countryCode: "+91", localNumber: "9999900000", mode: "signup" }),
+      }),
+    );
+    expect(disabledRes.status).toBe(503);
+
+    // 2. Rejects invalid Indian mobile format before calling Supabase
+    const badPhoneRes = await phoneSendOtpPost(
+      new Request("http://localhost:3000/api/auth/phone/send-otp", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.2.0.1" },
+        body: JSON.stringify({ countryCode: "+91", localNumber: "12345", mode: "signup" }),
+      }),
+    );
+    expect(badPhoneRes.status).toBe(400);
+
+    // 3. Sends SMS OTP without setting session cookie and enforces cooldown
+    const sendRes = await phoneSendOtpPost(
+      new Request("http://localhost:3000/api/auth/phone/send-otp", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.2.0.2" },
+        body: JSON.stringify({
+          countryCode: "+91",
+          localNumber: "98765 43210",
+          fullName: "Rohan Verma",
+          mode: "signup",
+        }),
+      }),
+    );
+    expect(sendRes.status).toBe(200);
+    expect(sendRes.headers.get("set-cookie")).toBeNull();
+    const sendJson = await sendRes.json();
+    expect(sendJson.phone).toBe("+919876543210");
+    expect(sendJson.cooldownSeconds).toBe(60);
+
+    const earlyResend = await phoneSendOtpPost(
+      new Request("http://localhost:3000/api/auth/phone/send-otp", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.2.0.2" },
+        body: JSON.stringify({ countryCode: "+91", localNumber: "9876543210", mode: "signup" }),
+      }),
+    );
+    expect(earlyResend.status).toBe(429);
+
+    // 4. Verifies valid SMS OTP, creates profile strictly by authUser.id, masks phone in audit logs
+    const verifyOk = await phoneVerifyOtpPost(
+      new Request("http://localhost:3000/api/auth/phone/verify-otp", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.2.0.2" },
+        body: JSON.stringify({ phone: "+919876543210", token: "654321" }),
+      }),
+    );
+    expect(verifyOk.status).toBe(200);
+    const verifyOkJson = await verifyOk.json();
+    expect(verifyOkJson.access_token).toBeUndefined();
+    expect(verifyOkJson.user.phone).toBe("+919876543210");
+    expect(verifyOk.headers.get("set-cookie")).toContain("sm_access_token=phone-jwt.");
+    expect(verifyOk.headers.get("set-cookie")).toContain("HttpOnly");
+    expect(profileQueries[0]).toContain("id=eq.phone-user-1");
+    expect(auditPayloads.some((e) => String(e.actor_label).includes("+91••••3210"))).toBe(true);
+
+    // 5. Handles expired phone OTP cleanly
+    const expRes = await phoneVerifyOtpPost(
+      new Request("http://localhost:3000/api/auth/phone/verify-otp", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.2.0.3" },
+        body: JSON.stringify({ phone: "+919876543211", token: "111222" }),
+      }),
+    );
+    expect(expRes.status).toBe(400);
+    expect((await expRes.json()).error).toMatch(/expired/i);
+
+    // 6. Prevents phone OTP brute-force attempts with 429 on 6th failure
+    const beforeAttempts = verifyAttempts;
+    for (let i = 0; i < 5; i += 1) {
+      const bad = await phoneVerifyOtpPost(
+        new Request("http://localhost:3000/api/auth/phone/verify-otp", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-forwarded-for": "10.2.0.4" },
+          body: JSON.stringify({ phone: "+919876543219", token: "000000" }),
+        }),
+      );
+      expect(bad.status).toBe(400);
+    }
+    expect(verifyAttempts).toBe(beforeAttempts + 5);
+
+    const locked = await phoneVerifyOtpPost(
+      new Request("http://localhost:3000/api/auth/phone/verify-otp", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.2.0.4" },
+        body: JSON.stringify({ phone: "+919876543219", token: "000000" }),
+      }),
+    );
+    expect(locked.status).toBe(429);
+    expect(verifyAttempts).toBe(beforeAttempts + 5);
+  });
+
+  it("handles Google OAuth PKCE redirect, verified callback provisioning without duplicates, and cancellation", async () => {
+    setTestSupabaseEnv();
+    const auditPayloads: Record<string, unknown>[] = [];
+    const createdGroups: Record<string, unknown>[] = [];
+    let isReturningUser = false;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/auth/v1/token?grant_type=pkce")) {
+          const body = JSON.parse(String(init?.body ?? "{}")) as {
+            auth_code?: string;
+            code_verifier?: string;
+          };
+          expect(body.auth_code).toBe("google-auth-code-123");
+          expect(body.code_verifier?.length).toBeGreaterThanOrEqual(32);
+          return Response.json({
+            access_token: "google-jwt.eyJzZXNzaW9uX2lkIjoic2VzLWdvb2dsZSJ9.sig",
+            refresh_token: "google-refresh-token",
+            expires_in: 3600,
+            user: {
+              id: "google-user-1",
+              email: "ananya@gmail.com",
+              app_metadata: { provider: "google", providers: ["google"] },
+              user_metadata: { name: "Ananya Kapoor", full_name: "Ananya Kapoor" },
+            },
+          });
+        }
+        if (url.includes("/rest/v1/profiles")) {
+          expect(url).not.toContain("ananya@gmail.com");
+          if (isReturningUser) {
+            return Response.json([
+              {
+                id: "google-user-1",
+                email: "ananya@gmail.com",
+                full_name: "Ananya Kapoor",
+                initials: "AK",
+                avatar_color: "teal",
+                default_currency: "INR",
+                workspace_initialized: true,
+              },
+            ]);
+          }
+          if (!init?.method || init.method === "GET") {
+            return Response.json([]);
+          }
+          return Response.json([
+            {
+              id: "google-user-1",
+              email: "ananya@gmail.com",
+              full_name: "Ananya Kapoor",
+              initials: "AK",
+              avatar_color: "coral",
+              default_currency: "INR",
+              workspace_initialized: false,
+            },
+          ]);
+        }
+        if (url.includes("/rest/v1/groups") && init?.method === "POST") {
+          const groupBody = JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>;
+          createdGroups.push(groupBody);
+          return Response.json([{ id: "goa-google-seed", ...groupBody }], { status: 201 });
+        }
+        if (url.includes("/rest/v1/security_audit_events")) {
+          auditPayloads.push(JSON.parse(String(init?.body ?? "{}")));
+          return new Response(null, { status: 201 });
+        }
+        return Response.json([]);
+      }),
+    );
+
+    // 1. OAuth start sets HttpOnly PKCE cookie and redirects to Supabase Google provider
+    const startRes = await googleOAuthGet(
+      new Request("http://localhost:3000/api/auth/oauth/google?next=/dashboard"),
+    );
+    expect(startRes.status).toBe(302);
+    const authorizeLocation = startRes.headers.get("location") ?? "";
+    expect(authorizeLocation).toContain("https://example.supabase.co/auth/v1/authorize");
+    expect(authorizeLocation).toContain("provider=google");
+    expect(authorizeLocation).toContain("code_challenge_method=s256");
+    expect(authorizeLocation).toContain(encodeURIComponent("http://localhost:3000/api/auth/callback"));
+
+    const pkceSetCookie = startRes.headers.get("set-cookie") ?? "";
+    expect(pkceSetCookie).toContain("sm_oauth_pkce=");
+    expect(pkceSetCookie).toContain("HttpOnly");
+    const pkceCookiePair = pkceSetCookie.split(";")[0];
+
+    // 2. Callback exchanges PKCE code, provisions profile + seeds Goa workspace for new user, sets HttpOnly cookies
+    const callbackNewRes = await oauthCallbackGet(
+      new Request("http://localhost:3000/api/auth/callback?code=google-auth-code-123", {
+        headers: { cookie: pkceCookiePair },
+      }),
+    );
+    expect(callbackNewRes.status).toBe(303);
+    expect(callbackNewRes.headers.get("location")).toBe("http://localhost:3000/dashboard");
+    const callbackCookies = callbackNewRes.headers.get("set-cookie") ?? "";
+    expect(callbackCookies).toContain("sm_access_token=google-jwt.");
+    expect(callbackCookies).toContain("HttpOnly");
+    expect(callbackCookies).toContain("sm_oauth_pkce=;");
+    expect(createdGroups.some((g) => g.name === "Goa Trip 2026")).toBe(true);
+    expect(auditPayloads.some((e) => e.event_type === "auth.oauth.succeeded")).toBe(true);
+
+    // 3. Returning Google user fetches existing profile without duplicating profile or re-seeding groups
+    const groupsCountAfterFirst = createdGroups.length;
+    isReturningUser = true;
+    const callbackExistingRes = await oauthCallbackGet(
+      new Request("http://localhost:3000/api/auth/callback?code=google-auth-code-123", {
+        headers: { cookie: pkceCookiePair },
+      }),
+    );
+    expect(callbackExistingRes.status).toBe(303);
+    expect(createdGroups.length).toBe(groupsCountAfterFirst);
+
+    // 4. Rejects callback without matching PKCE verifier cookie (CSRF protection)
+    const missingPkceRes = await oauthCallbackGet(
+      new Request("http://localhost:3000/api/auth/callback?code=stolen-code"),
+    );
+    expect(missingPkceRes.status).toBe(303);
+    expect(missingPkceRes.headers.get("location")).toContain("/login?error=");
+
+    // 5. Gracefully handles Google OAuth cancellation
+    const cancelledRes = await oauthCallbackGet(
+      new Request("http://localhost:3000/api/auth/callback?error=access_denied", {
+        headers: { cookie: pkceCookiePair },
+      }),
+    );
+    expect(cancelledRes.status).toBe(303);
+    expect(cancelledRes.headers.get("location")).toContain("Google%20sign-in%20was%20cancelled");
+    expect(auditPayloads.some((e) => e.event_type === "auth.oauth.failed")).toBe(true);
   });
 });

@@ -59,6 +59,14 @@ export async function GET(request: Request) {
   }
 
   const isDemo = isDemoAuthUser(session.user);
+  const providerLabel = isDemo
+    ? "Supabase Anonymous Auth · Isolated Demo"
+    : profile.authProvider === "google"
+      ? "Google OAuth (Supabase PKCE · HttpOnly)"
+      : profile.authProvider === "phone"
+        ? "Phone OTP (Supabase + Twilio SMS · HttpOnly)"
+        : "Supabase Auth · HttpOnly session";
+
   const res = NextResponse.json({
     authConfigured: true,
     authenticated: true,
@@ -69,7 +77,7 @@ export async function GET(request: Request) {
       authConfigured: true,
       isDemo,
       sessionId: session.sessionId,
-      provider: isDemo ? "Supabase Anonymous Auth · Isolated Demo" : "Supabase Auth · HttpOnly session",
+      provider: providerLabel,
       createdAt: session.sessionCreatedAt,
       deviceLabel,
       storageMode: "supabase_http_only",

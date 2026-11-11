@@ -2,18 +2,18 @@ import { NextResponse } from "next/server";
 import { maskEmailForAudit } from "@/lib/audit";
 import {
   applySessionCookies,
-  deriveSafeSessionId,
   parseDeviceSummary,
-  verifySignupOtpWithSupabase,
+  verifyEmailOtpWithSupabase,
 } from "@/lib/supabase/auth";
 import { isSupabaseAuthConfigured } from "@/lib/supabase/config";
-import { ensureUserProfile, recordServerAuditEvent } from "@/lib/supabase/db";
+import { recordServerAuditEvent } from "@/lib/supabase/db";
 import {
   checkOtpVerifyAllowed,
   clearOtpVerifyFailures,
   getClientKey,
   recordOtpVerifyFailure,
 } from "@/lib/supabase/rate-limit";
+import { establishVerifiedUserSession } from "@/lib/supabase/session-helper";
 
 export async function POST(request: Request) {
   if (!isSupabaseAuthConfigured()) {
@@ -23,15 +23,17 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { email?: unknown; token?: unknown };
+  let body: { email?: unknown; token?: unknown; mode?: unknown; rememberMe?: unknown };
   try {
-    body = (await request.json()) as { email?: unknown; token?: unknown };
+    body = (await request.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
   }
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const token = typeof body.token === "string" ? body.token.trim() : "";
+  const mode = body.mode === "login" ? "login" : "signup";
+  const rememberMe = body.rememberMe !== false;
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
@@ -69,47 +71,26 @@ export async function POST(request: Request) {
   }
 
   try {
-    const tokens = await verifySignupOtpWithSupabase(email, token);
+    const tokens = await verifyEmailOtpWithSupabase(
+      email,
+      token,
+      mode === "login" ? "email" : "signup",
+    );
     clearOtpVerifyFailures(email, clientIp);
 
-    const sessionId = deriveSafeSessionId(tokens.access_token);
-    const createdAt = new Date().toISOString();
-
-    let actorLabel = tokens.user.user_metadata?.full_name || maskEmailForAudit(email);
-    let profile = null;
-    try {
-      const ensured = await ensureUserProfile(tokens.access_token, tokens.user);
-      profile = ensured.profile;
-      actorLabel = ensured.profile.fullName;
-    } catch {
-      // Profile creation is also provisioned via DB trigger.
-    }
-
-    await recordServerAuditEvent({
-      category: "authentication",
+    const established = await establishVerifiedUserSession({
+      tokens,
+      request,
+      authMethod: "email_otp",
       eventType: "auth.otp.verified",
-      eventName: "Signup OTP verified",
-      status: "success",
-      actorUserId: tokens.user.id,
-      actorLabel,
-      description: `Verified 6-digit email OTP for ${maskEmailForAudit(email)} (${deviceLabel}).`,
-      metadata: { sessionId, device: deviceLabel },
-    });
-
-    await recordServerAuditEvent({
-      category: "authentication",
-      eventType: "auth.session.created",
-      eventName: "Session created",
-      status: "info",
-      actorUserId: tokens.user.id,
-      actorLabel,
-      description: `Established HttpOnly session ${sessionId} after OTP verification (${deviceLabel}).`,
-      metadata: { sessionId, device: deviceLabel },
+      eventName: mode === "login" ? "Login email OTP verified" : "Signup OTP verified",
+      description: `Verified 6-digit ${mode} email OTP for ${maskEmailForAudit(email)}`,
+      seedWorkspace: true,
     });
 
     const response = NextResponse.json({
       ok: true,
-      user: profile ?? { id: tokens.user.id, email: tokens.user.email ?? email, fullName: actorLabel },
+      user: established.profile,
     });
 
     applySessionCookies(
@@ -117,9 +98,10 @@ export async function POST(request: Request) {
       {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
-        sessionId,
-        sessionCreatedAt: createdAt,
+        sessionId: established.sessionId,
+        sessionCreatedAt: established.createdAt,
         expiresIn: tokens.expires_in,
+        rememberMe,
       },
       request,
     );

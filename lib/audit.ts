@@ -42,6 +42,16 @@ export function maskEmailForAudit(email: string): string {
   return `${local[0]}***${local[local.length - 1]}@${domain}`;
 }
 
+export function maskPhoneForAudit(phone: string): string {
+  const cleaned = phone.trim().replace(/\s+/g, "");
+  const digits = cleaned.replace(/\D/g, "");
+  if (digits.length < 4) return "+••••";
+  const last4 = digits.slice(-4);
+  if (cleaned.startsWith("+91")) return `+91••••${last4}`;
+  const prefix = cleaned.startsWith("+") ? cleaned.slice(0, Math.min(3, cleaned.length - 4)) : "+";
+  return `${prefix}••••${last4}`;
+}
+
 export function buildAuditEvent(input: {
   id?: string;
   category: AuditCategory;

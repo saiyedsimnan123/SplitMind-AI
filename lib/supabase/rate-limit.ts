@@ -20,12 +20,12 @@ export function getClientKey(request: Request): string {
   return forwarded || realIp || "local";
 }
 
-export function checkOtpVerifyAllowed(email: string, clientIp: string): {
+export function checkOtpVerifyAllowed(subject: string, clientIp: string): {
   allowed: boolean;
   retryAfterSeconds: number;
 } {
   const now = Date.now();
-  const keys = [`email:${email.toLowerCase()}`, `ip:${clientIp}`];
+  const keys = [`subject:${subject.trim().toLowerCase()}`, `ip:${clientIp}`];
   for (const key of keys) {
     const entry = verifyFailures.get(key);
     if (!entry) continue;
@@ -44,9 +44,9 @@ export function checkOtpVerifyAllowed(email: string, clientIp: string): {
   return { allowed: true, retryAfterSeconds: 0 };
 }
 
-export function recordOtpVerifyFailure(email: string, clientIp: string): void {
+export function recordOtpVerifyFailure(subject: string, clientIp: string): void {
   const now = Date.now();
-  const keys = [`email:${email.toLowerCase()}`, `ip:${clientIp}`];
+  const keys = [`subject:${subject.trim().toLowerCase()}`, `ip:${clientIp}`];
   for (const key of keys) {
     const existing = verifyFailures.get(key);
     if (!existing || now - existing.windowStart > VERIFY_WINDOW_MS) {
@@ -61,23 +61,23 @@ export function recordOtpVerifyFailure(email: string, clientIp: string): void {
   }
 }
 
-export function clearOtpVerifyFailures(email: string, clientIp: string): void {
-  verifyFailures.delete(`email:${email.toLowerCase()}`);
+export function clearOtpVerifyFailures(subject: string, clientIp: string): void {
+  verifyFailures.delete(`subject:${subject.trim().toLowerCase()}`);
   verifyFailures.delete(`ip:${clientIp}`);
 }
 
-export function checkOtpResendAllowed(email: string, clientIp: string): {
+export function checkOtpResendAllowed(subject: string, clientIp: string): {
   allowed: boolean;
   retryAfterSeconds: number;
   reason?: string;
 } {
   const now = Date.now();
-  const emailKey = `email:${email.toLowerCase()}`;
+  const subjectKey = `subject:${subject.trim().toLowerCase()}`;
   const ipKey = `ip:${clientIp}`;
 
-  const emailEntry = resendHistory.get(emailKey);
-  if (emailEntry) {
-    const sinceLast = now - emailEntry.lastAttemptAt;
+  const subjectEntry = resendHistory.get(subjectKey);
+  if (subjectEntry) {
+    const sinceLast = now - subjectEntry.lastAttemptAt;
     if (sinceLast < RESEND_COOLDOWN_MS) {
       return {
         allowed: false,
@@ -85,10 +85,10 @@ export function checkOtpResendAllowed(email: string, clientIp: string): {
         reason: "Please wait before requesting another verification code.",
       };
     }
-    if (now - emailEntry.windowStart <= RESEND_WINDOW_MS && emailEntry.count >= MAX_RESENDS_PER_WINDOW) {
+    if (now - subjectEntry.windowStart <= RESEND_WINDOW_MS && subjectEntry.count >= MAX_RESENDS_PER_WINDOW) {
       return {
         allowed: false,
-        retryAfterSeconds: Math.max(1, Math.ceil((RESEND_WINDOW_MS - (now - emailEntry.windowStart)) / 1000)),
+        retryAfterSeconds: Math.max(1, Math.ceil((RESEND_WINDOW_MS - (now - subjectEntry.windowStart)) / 1000)),
         reason: "Maximum OTP resend limit reached. Please try again in a few minutes.",
       };
     }
@@ -106,9 +106,9 @@ export function checkOtpResendAllowed(email: string, clientIp: string): {
   return { allowed: true, retryAfterSeconds: 0 };
 }
 
-export function recordOtpResendAttempt(email: string, clientIp: string): void {
+export function recordOtpResendAttempt(subject: string, clientIp: string): void {
   const now = Date.now();
-  for (const key of [`email:${email.toLowerCase()}`, `ip:${clientIp}`]) {
+  for (const key of [`subject:${subject.trim().toLowerCase()}`, `ip:${clientIp}`]) {
     const existing = resendHistory.get(key);
     if (!existing || now - existing.windowStart > RESEND_WINDOW_MS) {
       resendHistory.set(key, { count: 1, windowStart: now, lastAttemptAt: now });
