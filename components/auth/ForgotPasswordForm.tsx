@@ -14,7 +14,7 @@ export function ForgotPasswordForm({ authConfigured }: { authConfigured: boolean
     setError("");
     setSentMessage("");
 
-    const trimmedEmail = email.trim();
+    const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       setError("Enter a valid email address.");
       return;
@@ -51,23 +51,26 @@ export function ForgotPasswordForm({ authConfigured }: { authConfigured: boolean
             <CheckCircle2 size={18} />
           </div>
           <div className="payment-banner-copy">
-            <strong>Reset link requested</strong>
+            <strong>Reset link sent</strong>
             <p>{sentMessage}</p>
           </div>
         </div>
       )}
 
       <label className="form-label">
-        Account email
-        <input
-          type="email"
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          disabled={busy}
-          required
-        />
+        Email address
+        <div className="auth-input-wrap">
+          <Mail size={16} className="auth-input-icon" aria-hidden="true" />
+          <input
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            disabled={busy}
+            required
+          />
+        </div>
       </label>
 
       {error && (
@@ -77,8 +80,8 @@ export function ForgotPasswordForm({ authConfigured }: { authConfigured: boolean
       )}
 
       <button type="submit" className="button button-primary full-button" disabled={busy || !authConfigured}>
-        {busy ? <Loader2 size={15} className="spin" /> : <Mail size={15} />}
-        {busy ? "Sending reset link..." : "Send password reset link"}
+        {busy ? <Loader2 size={16} className="spin" /> : <Mail size={16} />}
+        {busy ? "Sending reset link..." : "Send Password Reset Link"}
       </button>
     </form>
   );

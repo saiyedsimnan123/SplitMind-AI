@@ -11,10 +11,17 @@ import { ensureUserProfile, recordServerAuditEvent } from "@/lib/supabase/db";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const origin = getCanonicalOrigin(request.url);
-  const nextPath = safeRedirectPath(url.searchParams.get("next"), "/");
+  const origin = getCanonicalOrigin(request.url, request);
+  const nextPath = safeRedirectPath(url.searchParams.get("next"), "/reset-password");
   const tokenHash = url.searchParams.get("token_hash") ?? "";
-  const type = url.searchParams.get("type") ?? "email";
+  const type = url.searchParams.get("type") ?? "recovery";
+
+  if (type !== "recovery") {
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent("Sign in with your email and password.")}`,
+      { status: 303 },
+    );
+  }
 
   if (!isSupabaseAuthConfigured()) {
     return NextResponse.redirect(

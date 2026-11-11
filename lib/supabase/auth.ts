@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import type { NextRequest, NextResponse } from "next/server";
 import {
   ACCESS_COOKIE,
-  OAUTH_PKCE_COOKIE,
   REFRESH_COOKIE,
   SESSION_CREATED_COOKIE,
   SESSION_ID_COOKIE,
@@ -14,7 +13,6 @@ import {
 
 export {
   ACCESS_COOKIE,
-  OAUTH_PKCE_COOKIE,
   REFRESH_COOKIE,
   SESSION_CREATED_COOKIE,
   SESSION_ID_COOKIE,
@@ -32,6 +30,7 @@ export type SupabaseAuthUser = {
   user_metadata?: {
     full_name?: string;
     name?: string;
+    contact_phone?: string;
     avatar_color?: string;
     default_currency?: string;
     is_demo?: boolean;
@@ -49,10 +48,6 @@ export function getAuthUserDisplayName(user: SupabaseAuthUser | null | undefined
   const metaName = user.user_metadata?.full_name?.trim() || user.user_metadata?.name?.trim();
   if (metaName) return metaName;
   if (user.email?.trim()) return user.email.trim();
-  if (user.phone?.trim()) {
-    const clean = user.phone.trim();
-    return `Member ••••${clean.slice(-4)}`;
-  }
   return "SplitMind Member";
 }
 
@@ -243,14 +238,12 @@ export async function signUpWithSupabase(input: {
   password: string;
   fullName: string;
   contactPhone?: string;
-  redirectTo?: string;
 }) {
   if (!isSupabaseAuthConfigured()) {
     throw new Error("Supabase Auth is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY.");
   }
   const url = getSupabaseUrl();
-  const query = input.redirectTo ? `?redirect_to=${encodeURIComponent(input.redirectTo)}` : "";
-  const response = await fetch(`${url}/auth/v1/signup${query}`, {
+  const response = await fetch(`${url}/auth/v1/signup`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({
@@ -279,7 +272,10 @@ export async function signUpWithSupabase(input: {
           id: data.id,
           email: data.email ?? input.email,
           identities: data.identities,
-          user_metadata: { full_name: input.fullName },
+          user_metadata: {
+            full_name: input.fullName,
+            ...(input.contactPhone ? { contact_phone: input.contactPhone } : {}),
+          },
         }
       : null);
 
@@ -296,239 +292,6 @@ export async function signUpWithSupabase(input: {
           }
         : null,
   };
-}
-
-export async function verifyEmailOtpWithSupabase(
-  email: string,
-  token: string,
-  type: "signup" | "email" = "signup",
-): Promise<SupabaseSessionTokens> {
-  if (!isSupabaseAuthConfigured()) {
-    throw new Error("Supabase Auth is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY.");
-  }
-  const url = getSupabaseUrl();
-  const response = await fetch(`${url}/auth/v1/verify`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ type, email, token }),
-    signal: AbortSignal.timeout(12000),
-  });
-  const data = (await response.json().catch(() => ({}))) as Partial<SupabaseSessionTokens>;
-  if (!response.ok || !data.access_token || !data.refresh_token || !data.user) {
-    throw new Error(parseSupabaseError(data, "The verification code is invalid or has expired."));
-  }
-  return data as SupabaseSessionTokens;
-}
-
-export async function verifySignupOtpWithSupabase(
-  email: string,
-  token: string,
-): Promise<SupabaseSessionTokens> {
-  return verifyEmailOtpWithSupabase(email, token, "signup");
-}
-
-export async function sendEmailOtpWithSupabase(
-  email: string,
-  options?: { createUser?: boolean },
-): Promise<void> {
-  if (!isSupabaseAuthConfigured()) {
-    throw new Error("Supabase Auth is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY.");
-  }
-  const url = getSupabaseUrl();
-  const response = await fetch(`${url}/auth/v1/otp`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      email,
-      create_user: options?.createUser ?? false,
-    }),
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    const raw = parseSupabaseError(data, "Could not send the email verification code.");
-    if (/signups not allowed for otp/i.test(raw)) {
-      throw new Error("No account found with this email. Switch to Create account to sign up.");
-    }
-    throw new Error(raw);
-  }
-}
-
-export async function resendSignupOtpWithSupabase(email: string): Promise<void> {
-  if (!isSupabaseAuthConfigured()) {
-    throw new Error("Supabase Auth is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY.");
-  }
-  const url = getSupabaseUrl();
-  const response = await fetch(`${url}/auth/v1/resend`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ type: "signup", email }),
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(parseSupabaseError(data, "Could not resend the verification code."));
-  }
-}
-
-export async function sendPhoneOtpWithSupabase(input: {
-  phone: string;
-  fullName?: string;
-  createUser?: boolean;
-}): Promise<void> {
-  if (!isSupabaseAuthConfigured()) {
-    throw new Error("Supabase Auth is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY.");
-  }
-  const url = getSupabaseUrl();
-  const response = await fetch(`${url}/auth/v1/otp`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      phone: input.phone,
-      channel: "sms",
-      create_user: input.createUser ?? true,
-      ...(input.fullName ? { data: { full_name: input.fullName } } : {}),
-    }),
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    const raw = parseSupabaseError(data, "Could not deliver SMS OTP through Supabase Phone Auth.");
-    if (/signups not allowed for otp/i.test(raw)) {
-      throw new Error("No account found with this phone number. Switch to Create account to register.");
-    }
-    if (/phone.*disabled|unsupported phone provider/i.test(raw)) {
-      throw new Error(
-        "Phone OTP (SMS) is disabled in Supabase. Enable Phone Auth with Twilio credentials in Supabase Dashboard.",
-      );
-    }
-    throw new Error(raw);
-  }
-}
-
-export async function verifyPhoneOtpWithSupabase(
-  phone: string,
-  token: string,
-): Promise<SupabaseSessionTokens> {
-  if (!isSupabaseAuthConfigured()) {
-    throw new Error("Supabase Auth is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY.");
-  }
-  const url = getSupabaseUrl();
-  const response = await fetch(`${url}/auth/v1/verify`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ type: "sms", phone, token }),
-    signal: AbortSignal.timeout(12000),
-  });
-  const data = (await response.json().catch(() => ({}))) as Partial<SupabaseSessionTokens>;
-  if (!response.ok || !data.access_token || !data.refresh_token || !data.user) {
-    throw new Error(parseSupabaseError(data, "The SMS verification code is invalid or has expired."));
-  }
-  return data as SupabaseSessionTokens;
-}
-
-export function createPkcePair(): { codeVerifier: string; codeChallenge: string } {
-  const codeVerifier = randomBytes(32).toString("base64url");
-  const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
-  return { codeVerifier, codeChallenge };
-}
-
-export function buildGoogleOAuthUrl(input: {
-  callbackUrl: string;
-  codeChallenge: string;
-}): string {
-  const url = getSupabaseUrl();
-  const params = new URLSearchParams({
-    provider: "google",
-    redirect_to: input.callbackUrl,
-    code_challenge: input.codeChallenge,
-    code_challenge_method: "s256",
-    access_type: "offline",
-    prompt: "select_account",
-  });
-  return `${url}/auth/v1/authorize?${params.toString()}`;
-}
-
-export async function exchangePkceCodeWithSupabase(
-  authCode: string,
-  codeVerifier: string,
-): Promise<SupabaseSessionTokens> {
-  if (!isSupabaseAuthConfigured()) {
-    throw new Error("Supabase Auth is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY.");
-  }
-  const url = getSupabaseUrl();
-  const response = await fetch(`${url}/auth/v1/token?grant_type=pkce`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      auth_code: authCode,
-      code_verifier: codeVerifier,
-    }),
-    signal: AbortSignal.timeout(12000),
-  });
-  const data = (await response.json().catch(() => ({}))) as Partial<SupabaseSessionTokens>;
-  if (!response.ok || !data.access_token || !data.refresh_token || !data.user) {
-    throw new Error(parseSupabaseError(data, "Could not complete Google OAuth sign-in with Supabase."));
-  }
-  return data as SupabaseSessionTokens;
-}
-
-export function applyOAuthPkceCookie(
-  response: NextResponse,
-  payload: { verifier: string; next: string },
-  request?: Request | NextRequest,
-) {
-  response.cookies.set(OAUTH_PKCE_COOKIE, JSON.stringify(payload), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isSecureCookieContext(request),
-    path: "/",
-    maxAge: 600,
-  });
-}
-
-export function clearOAuthPkceCookie(response: NextResponse, request?: Request | NextRequest) {
-  response.cookies.set(OAUTH_PKCE_COOKIE, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isSecureCookieContext(request),
-    path: "/",
-    maxAge: 0,
-  });
-}
-
-export function readOAuthPkceCookie(
-  request: Request | NextRequest,
-): { verifier: string; next: string } | null {
-  let raw = "";
-  if ("cookies" in request && typeof (request as NextRequest).cookies?.get === "function") {
-    raw = (request as NextRequest).cookies.get(OAUTH_PKCE_COOKIE)?.value ?? "";
-  } else {
-    const header = request.headers.get("cookie") ?? "";
-    for (const part of header.split(";")) {
-      const idx = part.indexOf("=");
-      if (idx > 0 && part.slice(0, idx).trim() === OAUTH_PKCE_COOKIE) {
-        const val = part.slice(idx + 1).trim();
-        try {
-          raw = decodeURIComponent(val);
-        } catch {
-          raw = val;
-        }
-        break;
-      }
-    }
-  }
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as { verifier?: unknown; next?: unknown };
-    if (typeof parsed.verifier !== "string" || parsed.verifier.length < 16) return null;
-    return {
-      verifier: parsed.verifier,
-      next: safeRedirectPath(typeof parsed.next === "string" ? parsed.next : "/", "/"),
-    };
-  } catch {
-    return null;
-  }
 }
 
 export async function signInAnonymouslyForDemo(): Promise<SupabaseSessionTokens> {
@@ -638,7 +401,7 @@ export async function verifySupabaseTokenHash(tokenHash: string, type: string): 
   });
   const data = (await response.json().catch(() => ({}))) as Partial<SupabaseSessionTokens>;
   if (!response.ok || !data.access_token || !data.refresh_token || !data.user) {
-    throw new Error(parseSupabaseError(data, "The verification or recovery link is invalid or expired."));
+    throw new Error(parseSupabaseError(data, "The recovery link is invalid or expired."));
   }
   return data as SupabaseSessionTokens;
 }

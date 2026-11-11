@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }
 
-  const origin = getCanonicalOrigin(request.url);
+  const origin = getCanonicalOrigin(request.url, request);
   const redirectTo = `${origin}/reset-password`;
   const deviceLabel = parseDeviceSummary(request.headers.get("user-agent"));
 

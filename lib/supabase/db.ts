@@ -206,21 +206,21 @@ export async function adminRestFetch<T>(path: string, init: RequestInit = {}): P
 }
 
 function normalizeAuthUserPhone(rawPhone?: string | null): string {
-  const cleaned = (rawPhone ?? "").trim().replace(/\s+/g, "");
+  const cleaned = (rawPhone ?? "").trim().replace(/[^\d+]/g, "");
   if (!cleaned) return "";
   return cleaned.startsWith("+") ? cleaned : `+${cleaned}`;
 }
 
 export function authUserToFallbackProfile(user: SupabaseAuthUser): AuthUser {
   const isDemo = isDemoAuthUser(user);
-  const phone = normalizeAuthUserPhone(user.phone);
-  const authProvider = user.app_metadata?.provider || (phone ? "phone" : "email");
+  const phone = normalizeAuthUserPhone(user.phone || user.user_metadata?.contact_phone);
+  const authProvider = isDemo ? "anonymous" : "email";
   const fullName =
     user.user_metadata?.full_name?.trim() ||
     user.user_metadata?.name?.trim() ||
     (isDemo
       ? "Demo Explorer"
-      : user.email?.split("@")[0] || (phone ? `Member ••••${phone.slice(-4)}` : "")) ||
+      : user.email?.split("@")[0] || "") ||
     "SplitMind Member";
   const defaultCurrencyRaw = user.user_metadata?.default_currency;
   const defaultCurrency: CurrencyCode =
@@ -271,18 +271,38 @@ export async function ensureUserProfile(
     };
   }
 
-  const inserted = await userRestFetch<DbProfileRow[]>(accessToken, "profiles", {
-    method: "POST",
-    headers: { prefer: "return=representation,resolution=merge-duplicates" },
-    body: JSON.stringify({
-      id: authUser.id,
-      email: fallback.email,
-      full_name: fallback.fullName,
-      initials: fallback.initials,
-      avatar_color: fallback.avatarColor,
-      default_currency: fallback.defaultCurrency,
-    }),
-  });
+  const basePayload = {
+    id: authUser.id,
+    email: fallback.email,
+    full_name: fallback.fullName,
+    initials: fallback.initials,
+    avatar_color: fallback.avatarColor,
+    default_currency: fallback.defaultCurrency,
+  };
+
+  let inserted: DbProfileRow[] | null = null;
+  try {
+    inserted = await userRestFetch<DbProfileRow[]>(accessToken, "profiles", {
+      method: "POST",
+      headers: { prefer: "return=representation,resolution=merge-duplicates" },
+      body: JSON.stringify({
+        ...basePayload,
+        ...(fallback.phone ? { phone: fallback.phone } : {}),
+      }),
+    });
+  } catch (err) {
+    const status = (err as Error & { status?: number })?.status;
+    if (fallback.phone && (status === 409 || /unique|duplicate/i.test(err instanceof Error ? err.message : ""))) {
+      // Never overwrite another user's phone number; create profile without conflicting phone.
+      inserted = await userRestFetch<DbProfileRow[]>(accessToken, "profiles", {
+        method: "POST",
+        headers: { prefer: "return=representation,resolution=merge-duplicates" },
+        body: JSON.stringify(basePayload),
+      });
+    } else {
+      throw err;
+    }
+  }
 
   const row = inserted?.[0];
   return {
